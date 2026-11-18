@@ -1,0 +1,12 @@
+.rowWrap { min-width: 0; }
+.row { --dot: var(--sh-status-live); }
+.row.over, .row.overBand { --dot: var(--sh-status-warn); }
+.over [role='meter'] { --c: var(--sh-status-warn); }
+.over > span:last-child { color: var(--sh-status-warn); }
+.bandRow [role='meter'] { background: color-mix(in srgb, var(--sh-ink-dim) 55%, transparent); }
+
+.axis { display: flex; align-items: center; gap: 16px; margin: 2px 0 0; color: var(--sh-ink-dim-muted); }
+.axis > span:first-child { flex: 1; }
+.key { display: inline-flex; align-items: center; gap: 5px; color: var(--sh-status-warn); text-transform: uppercase; }
+.key svg { fill: var(--sh-status-warn); }
+.axis > span:last-child { text-transform: uppercase; }

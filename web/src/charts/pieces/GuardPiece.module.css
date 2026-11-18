@@ -1,0 +1,54 @@
+.root {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: 'tl draw tr' 'bl draw br' 'legend legend legend';
+  grid-template-rows: 1fr 1fr auto; column-gap: 16px; row-gap: 6px;
+}
+.draw { grid-area: draw; }
+.tl { grid-area: tl; align-self: start; padding-top: 48px; }
+.tr { grid-area: tr; align-self: start; padding-top: 48px; text-align: right; }
+.bl { grid-area: bl; align-self: end; padding-bottom: 72px; }
+.br { grid-area: br; align-self: end; padding-bottom: 72px; text-align: right; }
+.legend { grid-area: legend; display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+.legend p { margin: 0; }
+.key { text-align: right; }
+.status { min-width: 0; }
+.logWarn { color: var(--sh-status-warn); }
+.stat { min-width: 0; }
+.stat p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statTitle {
+  position: relative; font: 500 10px/1.4 var(--sh-font-oxanium); letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--sh-status-live);
+}
+.statValue { font: 400 11px/1.5 var(--sh-font-share-tech-mono); color: var(--sh-ink-dim); }
+.br .statValue { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.tl .statTitle { color: var(--sh-data-session); }
+.br .statTitle { color: var(--sh-ink-dim); }
+.stat p.statTitle { overflow: visible; }
+.statTitle::after {
+  content: ''; position: absolute; top: 50%; width: 26px; height: 1px;
+  background: color-mix(in srgb, var(--sh-ink-dim) 35%, transparent);
+}
+.tl .statTitle::after, .bl .statTitle::after { right: -40px; }
+.tr .statTitle::after, .br .statTitle::after { left: -40px; }
+.hub .hubTitle { color: var(--sh-status-live); }
+.seg { fill: none; stroke: currentColor; }
+.calls { --c: var(--sh-status-live); }
+.block { --c: var(--sh-status-warn); }
+.none { --c: color-mix(in srgb, var(--sh-ink-dim) 30%, transparent); }
+.dots {
+  fill: none; stroke: color-mix(in srgb, var(--sh-ink-dim) 25%, transparent); stroke-width: 1; stroke-dasharray: 1 7;
+}
+.shield {
+  fill: color-mix(in srgb, var(--sh-surface-navy) 85%, transparent); stroke: var(--sh-status-live); stroke-width: 1.5;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sh-status-live) 45%, transparent));
+}
+.shieldIn { fill: none; stroke: color-mix(in srgb, var(--sh-status-live) 40%, transparent); stroke-width: 1; }
+.hub { gap: 4px; }
+.verdict {
+  font: 500 10px/1.2 var(--sh-font-oxanium); letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--sh-status-live);
+}
+
+@container (max-width: 599.98px) {
+  .tl, .tr, .bl, .br { padding: 0; align-self: start; }
+}

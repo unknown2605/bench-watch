@@ -1,0 +1,51 @@
+{
+  "name": "benchwatch-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:gallery": "tsc --noEmit && VITE_GALLERY=1 vite build",
+    "publish:next": "node ../bin/publish-web.mjs dist",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "preview:gallery": "VITE_GALLERY=1 vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "lint": "lint/node_modules/.bin/eslint --config lint/eslint.config.js --max-warnings 0 --report-unused-disable-directives .",
+    "test": "vitest run",
+    "shots": "node e2e/shots.mjs",
+    "lint:install": "npm ci --ignore-scripts --prefix lint",
+    "codegen:install": "npm ci --ignore-scripts --prefix codegen"
+  },
+  "dependencies": {
+    "@fontsource/oxanium": "5.3.0",
+    "@fontsource/share-tech-mono": "5.3.0",
+    "@tanstack/react-query": "5.104.5",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-table": "9.3.1",
+    "d3-force": "3.0.0",
+    "d3-scale": "4.0.2",
+    "d3-shape": "3.2.0",
+    "react": "19.3.1",
+    "react-aria-components": "1.22.1",
+    "react-dom": "19.3.1",
+    "uplot": "1.6.32",
+    "vite": "8.3.5"
+  },
+  "devDependencies": {
+    "@types/d3-force": "3.0.10",
+    "@types/d3-scale": "4.0.9",
+    "@types/d3-shape": "3.2.0",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "30.1.3",
+    "playwright": "1.64.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  }
+}

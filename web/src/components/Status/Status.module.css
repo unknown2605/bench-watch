@@ -1,0 +1,9 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.status { display: inline-flex; align-items: center; gap: 8px; color: var(--c); }
+.label { margin-right: -0.16em; }
+.dot { width: 8px; height: 8px; background: var(--c); box-shadow: var(--glow); }
+.live { --c: var(--sh-status-live); --glow: 0 0 10px var(--sh-status-live); }
+.idle { --c: var(--sh-ink-dim); --glow: none; }
+.warn { --c: var(--sh-status-warn); --glow: 0 0 10px var(--sh-status-warn); }
+}

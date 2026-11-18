@@ -1,0 +1,17 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.frame {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--tone) 25%, transparent));
+  pointer-events: none;
+}
+.base { fill: color-mix(in srgb, var(--sh-surface-navy) 82%, transparent); }
+.stopTop { stop-color: var(--tone); stop-opacity: 0.1; }
+.stopBottom { stop-color: var(--tone); stop-opacity: 0.02; }
+.stroke { fill: none; stroke: var(--tint-line, color-mix(in srgb, var(--tone) 60%, transparent)); stroke-width: 1; }
+/* Set by a positional panel tint (tabs.module.css); unset, the tint layer is transparent. */
+.tintTop { stop-color: var(--tint-from, transparent); }
+.tintBottom { stop-color: var(--tint-to, transparent); }
+}

@@ -1,0 +1,129 @@
+@layer reset, shared, motion, layout;
+@layer layout {
+.page {
+  --gap-x: clamp(20px, 2.78vw, 48px);
+  position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; overflow-x: clip; outline: none;
+  --cap-pad: max(clamp(14px, 2.78vw, 56px), calc((100% - var(--content-max)) / 2 + 56px));
+  padding: clamp(10px, 1.04vw, 15px) var(--cap-pad) 24px;
+}
+
+.filters { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-height: 29px; }
+.project { min-width: min(228px, 100%); justify-content: space-between; }
+.projectSelect { display: contents; }
+.ranges { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; max-width: 100%; margin-left: auto; }
+.period {
+  margin-left: 14px; padding: 7px 14px; max-width: 100%; overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--sh-accent-gold) 80%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sh-accent-gold) 35%, transparent);
+}
+.note { margin-left: 18px; color: var(--sh-status-warn); }
+.popover {
+  min-width: min(calc(228px * var(--ui-zoom, 1)), 90vw); max-height: calc(320px * var(--ui-zoom, 1));
+  overflow: auto; background: var(--sh-surface-base);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sh-accent-gold) 35%, transparent), 0 8px 24px rgb(0 0 0 / 0.5);
+}
+.listbox { outline: none; padding: 4px 0; zoom: var(--ui-zoom, 1); }
+.option { padding: 6px 14px; color: var(--sh-ink-dim); cursor: pointer; outline: none; }
+.option[data-focused], .option[data-hovered] {
+  background: color-mix(in srgb, var(--sh-accent-gold) 12%, transparent);
+  color: var(--sh-ink-warm);
+}
+.option[data-selected] { color: var(--sh-accent-gold); }
+.option[data-focus-visible] { box-shadow: inset 0 0 0 1px var(--sh-ink-warm); }
+
+.grid {
+  position: relative; display: grid; flex: 1; min-height: 600px; margin-top: 21px; column-gap: var(--gap-x);
+  grid-template-columns: clamp(240px, 20.84vw, 340px) minmax(0, 1fr) clamp(240px, 20.84vw, 340px);
+  grid-template-areas: 'l c r';
+}
+/* Figma color/panel/tint-1..4 (Foundations 93:2-93:13), same values as the gallery cards; by position, CM-00014. */
+.grid {
+  --sh-panel-tint-1-from: #0c1736; --sh-panel-tint-1-to: #0a1430; --sh-panel-tint-1-border: #5069b0;
+  --sh-panel-tint-2-from: #061d24; --sh-panel-tint-2-to: #05171d; --sh-panel-tint-2-border: #35a3a0;
+  --sh-panel-tint-3-from: #21123a; --sh-panel-tint-3-to: #190d2a; --sh-panel-tint-3-border: #9068c0;
+  --sh-panel-tint-4-from: #251607; --sh-panel-tint-4-to: #1e1205; --sh-panel-tint-4-border: #b3813f;
+}
+.left > :nth-child(4n + 1), .bottom > * {
+  --tint-from: var(--sh-panel-tint-1-from); --tint-to: var(--sh-panel-tint-1-to);
+  --tint-line: color-mix(in srgb, var(--sh-panel-tint-1-border) 70%, transparent);
+}
+.left > :nth-child(4n + 2), .right > :nth-child(even) {
+  --tint-from: var(--sh-panel-tint-2-from); --tint-to: var(--sh-panel-tint-2-to);
+  --tint-line: color-mix(in srgb, var(--sh-panel-tint-2-border) 70%, transparent);
+}
+.left > :nth-child(4n + 3), .right > :nth-child(odd) {
+  --tint-from: var(--sh-panel-tint-3-from); --tint-to: var(--sh-panel-tint-3-to);
+  --tint-line: color-mix(in srgb, var(--sh-panel-tint-3-border) 70%, transparent);
+}
+.left > :nth-child(4n + 4) {
+  --tint-from: var(--sh-panel-tint-4-from); --tint-to: var(--sh-panel-tint-4-to);
+  --tint-line: color-mix(in srgb, var(--sh-panel-tint-4-border) 70%, transparent);
+}
+.left, .right { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.left { grid-area: l; position: relative; z-index: 1; }
+.right { grid-area: r; position: relative; z-index: 1; }
+.left { gap: 12px; }
+.left > :last-child { flex: 1; margin-top: 10px; }
+.right { gap: 20px; }
+.centre { position: relative; display: flex; flex-direction: column; grid-area: c; min-width: 0; min-height: 0; }
+.piece { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.piece::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 55% 45% at 50% 100%,
+    color-mix(in srgb, var(--sh-accent-gold) 13%, transparent), transparent);
+}
+.stage {
+  position: relative; display: grid; flex: 1; align-items: start; justify-items: stretch; min-width: 0; min-height: 0;
+}
+.bottom { position: relative; flex: none; }
+.overview .left { gap: 22px; }
+.overview .left > :last-child { margin-top: 46px; }
+.overview .right { gap: 68px; }
+.overview .right:has(> :nth-child(3)) { gap: 12px; }
+.bottom:has(> :nth-child(2)) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 1280px) {
+  .bottom:has(> :nth-child(2)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap-x); }
+}
+
+.state { display: grid; flex: 1; place-items: start center; padding-top: clamp(24px, 12vh, 120px); }
+.statePanel { width: min(680px, 100%); }
+/* A load that ends inside the delay never shows its panel, so the page title does not flash mid-page. */
+.wait { animation: pieceIn 200ms ease-out 400ms both; }
+.stateText { margin: 24px 0 8px; color: var(--sh-ink-dim); }
+
+.fill { flex: 1; }
+.list { display: flex; flex-direction: column; gap: 18px; }
+.foot { margin: 14px 0 0; color: color-mix(in srgb, var(--sh-ink-dim) 85%, transparent); }
+.footGold { margin: 14px 0 0; color: var(--sh-accent-gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.footGold + .footGold { margin-top: 4px; }
+.footWarn { margin: 14px 0 0; color: var(--sh-status-warn); }
+.muted { color: var(--sh-ink-dim-muted); }
+.none { margin: 6px 0 0; color: var(--sh-ink-dim); }
+.fixedChip { display: inline-flex; align-items: center; cursor: default; }
+
+@media (max-width: 1279.98px) {
+  .grid {
+    flex: none; min-height: 0; row-gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: 'c c' 'l r';
+  }
+  .piece { flex: none; min-height: clamp(440px, 62vw, 600px); }
+  .left > :last-child, .overview .left > :last-child { margin-top: 0; }
+  .overview .left, .overview .right { gap: 20px; }
+}
+
+@media (max-width: 899.98px) {
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'c' 'l' 'r'; }
+  .piece { min-height: clamp(430px, 118vw, 560px); }
+  .ranges { margin-left: 0; }
+  .period { margin-left: 0; }
+  .note { margin-left: 8px; }
+}
+
+.left > :nth-child(1), .right > :nth-child(1) { --enter: 0ms; }
+.left > :nth-child(2), .right > :nth-child(2) { --enter: 70ms; }
+.left > :nth-child(3), .right > :nth-child(3) { --enter: 140ms; }
+.left > :nth-child(n + 4), .right > :nth-child(n + 3) { --enter: 210ms; }
+:global([data-intro]) .piece { animation: pieceIn 500ms ease-out both; animation-delay: 120ms; }
+.bottom { --enter: 260ms; }
+@keyframes pieceIn { from { opacity: 0; } }
+}

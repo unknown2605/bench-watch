@@ -1,0 +1,31 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.bar {
+  position: relative; display: flex; align-items: center; min-height: 40px;
+  padding: 0 max(clamp(14px, 2.78vw, 40px), calc((100% - var(--content-max)) / 2 + 40px));
+  background: color-mix(in srgb, var(--sh-surface-base) 70%, transparent);
+}
+.edge {
+  position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: color-mix(in srgb, var(--sh-ink-dim) 30%, transparent);
+}
+.log {
+  position: relative; margin: 0; flex: 1; min-width: 0; overflow: hidden;
+  color: color-mix(in srgb, var(--sh-ink-dim) 80%, transparent);
+}
+.spoken { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.compact { display: block; overflow: hidden; white-space: pre; text-overflow: ellipsis; }
+.log:focus-visible { overflow-x: auto; scrollbar-width: thin; }
+.log:focus-visible .compact { display: none; }
+.log:focus-visible .spoken {
+  position: static; display: block; width: auto; height: auto; overflow: visible; clip-path: none; white-space: pre;
+}
+.next { margin-left: 16px; color: color-mix(in srgb, var(--sh-accent-gold) 75%, transparent); white-space: nowrap; }
+.track {
+  position: relative; width: 40px; height: 2px; margin-left: 13px;
+  background: color-mix(in srgb, var(--sh-accent-gold) 20%, transparent);
+}
+.fill {
+  position: absolute; inset: 0 auto 0 0; background: var(--sh-accent-gold); box-shadow: 0 0 6px var(--sh-accent-gold);
+}
+}

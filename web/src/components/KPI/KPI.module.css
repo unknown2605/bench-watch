@@ -1,0 +1,64 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.kpi { position: relative; min-width: 0; height: 116px; flex: none; }
+.bar {
+  position: absolute;
+  left: 22px;
+  top: -3px;
+  width: 78px;
+  height: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.label { position: absolute; left: 18px; top: 14px; margin: 0; color: var(--accent); }
+.value {
+  position: absolute;
+  left: 16px;
+  top: 30px;
+  margin: 0;
+  white-space: nowrap;
+  transform-origin: left center;
+  color: var(--sh-ink-warm);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--sh-accent-gold) 70%, transparent);
+}
+.kpi[data-tone='live'] .value, .kpi[data-tone='warn'] .value {
+  text-shadow: 0 0 14px color-mix(in srgb, var(--tone) 70%, transparent);
+}
+.delta {
+  position: absolute;
+  left: 18px;
+  top: 86px;
+  right: 18px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--sh-ink-dim) 85%, transparent);
+}
+.kpi[data-tone='live'] .delta, .kpi[data-tone='warn'] .delta {
+  color: color-mix(in srgb, var(--accent) 85%, transparent);
+}
+.trend {
+  position: absolute;
+  right: 20px;
+  top: 40px;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sh-accent-gold) 90%, transparent));
+}
+
+.kpi { transition: filter 180ms ease-out; }
+:global([data-intro]) .kpi { animation: rise 320ms ease-out both; animation-delay: var(--enter, 0ms); }
+.kpi:hover, .kpi:focus-within {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 40%, transparent));
+}
+.trendLine { stroke-dasharray: 1; stroke-dashoffset: 0; }
+:global([data-intro]) .trendLine {
+  animation: trace 1100ms ease-out both;
+  animation-delay: calc(var(--enter, 0ms) + 200ms);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes trace { from { stroke-dashoffset: 1; } }
+
+.todayDot { fill: var(--sh-accent-gold); stroke: var(--sh-ink-warm); stroke-width: 1; }
+.todayText { font: 600 8px var(--sh-font-oxanium); letter-spacing: 0.18em; fill: var(--sh-accent-gold); }
+}

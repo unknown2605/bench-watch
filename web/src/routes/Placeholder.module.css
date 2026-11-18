@@ -1,0 +1,11 @@
+.page { padding: 56px 40px; }
+.link { color: var(--sh-accent-gold); }
+.action {
+  color: var(--sh-accent-gold);
+  background: transparent;
+  border: 1px solid var(--sh-accent-gold);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}

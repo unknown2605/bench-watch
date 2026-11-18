@@ -1,0 +1,8 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.button {
+  display: grid; grid-template-columns: inherit; column-gap: inherit; align-items: center; grid-column: 1 / -1;
+  width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: inherit; background: none;
+  color: inherit; font: inherit; text-align: inherit; cursor: pointer;
+}
+}

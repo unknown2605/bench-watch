@@ -1,0 +1,10 @@
+.decisions, .speed, .rules { min-height: 0; }
+.decisions { overflow: hidden; }
+.rows { gap: 4px; }
+/* On the Panel root; .rulesBody makes the body the shrinking flex column so .scroll scrolls. */
+.bounded { display: flex; flex-direction: column; }
+.rulesBody { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.scroll { flex: 1 1 auto; min-height: 0; overflow-x: clip; overflow-y: auto; scrollbar-width: thin; }
+.errors { min-height: 0; }
+.errors .rows { gap: 4px; }
+.errors .foot, .decisions .foot { margin-top: 6px; }

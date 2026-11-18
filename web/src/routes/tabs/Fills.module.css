@@ -1,0 +1,14 @@
+.lavender [role='meter'], .lavender [role='meter'] > * { --c: var(--sh-data-session); }
+
+dl.statsAbove dt { order: 0; color: var(--sh-ink-dim); letter-spacing: 0.14em; text-transform: uppercase; }
+dl.statsAbove dd.cost { color: var(--sh-accent-gold); }
+.resent { color: var(--sh-status-warn); }
+
+.table th { letter-spacing: 0.12em; text-transform: uppercase; }
+.table tr[data-selected] td { background: color-mix(in srgb, var(--sh-accent-gold) 8%, transparent); }
+.table tr[data-selected] td:first-child { box-shadow: inset 2px 0 0 var(--sh-accent-gold); }
+.table td:first-child { padding-left: 6px; }
+.table td.weighted { color: var(--sh-accent-gold); }
+.mark { display: inline-block; width: 6px; height: 6px; margin-right: 8px; vertical-align: 1px; }
+.median { margin: -14px 0 6px; }
+.projectsFoot { margin-top: 6px; }

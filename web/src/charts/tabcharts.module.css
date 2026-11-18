@@ -1,0 +1,50 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.svg { display: block; overflow: visible; max-width: 100%; }
+/* A chart redrawn every frame gets its own layer, so its repaint does not re-raster the panel glow under it. */
+.liveLayer { will-change: transform; }
+.label { font: 600 11px var(--sh-font-oxanium); letter-spacing: 0.22em; text-transform: uppercase; }
+.name { font: 600 13px var(--sh-font-oxanium); fill: var(--sh-ink-warm); }
+.axis { font: 400 11px var(--sh-font-share-tech-mono); fill: color-mix(in srgb, var(--sh-ink-dim) 80%, transparent); }
+.axisNow { font: 400 11px var(--sh-font-share-tech-mono); fill: var(--sh-status-live); letter-spacing: 0.12em; }
+.grid { stroke: color-mix(in srgb, var(--sh-ink-dim) 14%, transparent); stroke-width: 1; }
+.glow { filter: drop-shadow(0 0 6px currentColor); }
+.glowSoft { filter: drop-shadow(0 0 4px currentColor); }
+.today {
+  fill: color-mix(in srgb, var(--sh-status-live) 12%, transparent);
+  stroke: var(--sh-status-live);
+  stroke-dasharray: 2 2;
+}
+.avg { stroke: color-mix(in srgb, var(--sh-ink-dim) 50%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
+.emptyDay { fill: color-mix(in srgb, var(--sh-ink-dim) 30%, transparent); }
+.absentDay {
+  fill: none; stroke: color-mix(in srgb, var(--sh-ink-dim) 55%, transparent); stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.barAxis {
+  display: flex; justify-content: space-between; margin-top: 3px; font: 400 11px/12px var(--sh-font-share-tech-mono);
+  color: color-mix(in srgb, var(--sh-ink-dim) 80%, transparent);
+}
+.barAxisNow { color: var(--sh-status-live); letter-spacing: 0.12em; }
+.peakLabel { font: 400 11px var(--sh-font-share-tech-mono); fill: var(--sh-accent-gold); }
+.hit { cursor: pointer; outline: none; }
+.hit:focus-visible .ring { stroke: var(--sh-ink-warm); stroke-width: 1.5; }
+.ring { fill: none; stroke: transparent; }
+.orbit { fill: none; stroke: color-mix(in srgb, var(--sh-ink-dim) 26%, transparent); stroke-width: 1; }
+.tag { fill: var(--sh-surface-base); stroke: color-mix(in srgb, var(--sh-ink-warm) 70%, transparent); stroke-width: 1; }
+.tag, .tagText { pointer-events: none; }
+.tagText { font: 400 10px var(--sh-font-share-tech-mono); fill: var(--sh-ink-warm); }
+.moon { fill: var(--sh-ink-warm); }
+.star { fill: var(--sh-status-warn); filter: drop-shadow(0 0 5px var(--sh-status-warn)); }
+.bar { fill: var(--sh-data-session); }
+.barLive { fill: var(--sh-status-live); }
+.dot2 { fill: var(--sh-status-live); }
+
+.glow, .glowSoft { transition: filter 180ms ease-out; }
+.hit:hover { filter: drop-shadow(0 0 12px currentColor) brightness(1.25); }
+.hit .ring { transition: stroke 180ms ease-out; }
+.hit:hover .ring { stroke: color-mix(in srgb, var(--sh-ink-warm) 70%, transparent); }
+
+.todayMark { fill: var(--sh-accent-gold); }
+.cap { fill: var(--sh-status-warn); }
+}

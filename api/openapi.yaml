@@ -1,0 +1,2813 @@
+openapi: 3.0.3
+info:
+  title: Benchwatch API
+  version: 1.0.0
+  description: |
+    Read-only API of the Benchwatch server, bound to 127.0.0.1:8790 and reached through the shared nginx
+    `/api/` proxy. Every operation is GET; there is no CORS, no authentication and no write path.
+
+    **Privacy rule (binding).** Every field is one of: a number, a boolean, an enum, a date or date-time,
+    a label that passed the server's labels gate, or a truncated hash. No field may carry prompt text,
+    tool output, commands, file paths, environment values, raw IDs or file contents. Each label type is a
+    named schema below with `x-cm-label` naming its gate and a `pattern` that the gate's output always
+    matches; a value the gate refuses is sent as that gate's fallback (`other`, `unknown`, `Bash: other`),
+    never as the raw text. `server/internal/api/contract_test.go` fails when a string schema is anything
+    else, when an object allows additional properties, or when an operation is not GET.
+
+    Hardware is described, not assumed: core counts, core kinds, network interfaces, volumes and
+    containers come from the machine at run time, so the page must not hard-code 8+2 cores or one
+    interface.
+
+    Units: tokens and bytes are integers; `*Bps` is bytes per second; `*Pct` is 0-100; `share` and
+    `*Share` are fractions 0-1; `costUsd` is an estimate at API list prices; durations are seconds.
+    Transcript days are local calendar days; sample times are RFC 3339 instants.
+
+    Live updates use Server-Sent Events on `/api/live`: the `event:` field is the `type` of a
+    `LiveEvent` and each `data:` field is one `LiveEvent` as JSON on a single line. The server sends a
+    comment line (`: ping`) every 15 s to keep the stream open.
+
+    **Transcript periods.** `today` is the server's local calendar day. A preset `range` covers the N
+    local days ending today (`today` is one day); `all` runs from `MetaResponse.firstDay` (today when
+    there is no data) to today and has no previous period. A custom period passes `from` and `to`
+    together and no `range`. Both are inclusive local days with `2000-01-01 <= from <= to <= today`,
+    and the period is at most 366 days. Anything else is a 400: `bad_range` for an unknown preset or a
+    preset together with `from` or `to`, `bad_date` for a missing half, a value that is not a date, an
+    inverted, future or too early date, or a longer span. The previous period has the same number of
+    days and ends the day before `from`. `Period.partial` is true when the period starts before
+    `firstDay`, so history does not cover all of it; `previousPartial` says the same of the previous
+    period.
+
+    **Metric ranges.** Each range ends now: `live` and `5m` cover 5 minutes, `15m` 15 minutes and `1h`
+    one hour, all at `raw` resolution (collector samples, `detailIntervalSeconds` apart); `24h` uses
+    the 1-minute rollups and `7d` the hourly ones. `coverageFrom` is the first point actually returned,
+    and `partial` is true when that is later than the range start (retention, collector start or a
+    gap at the start) or history is paused. While history is paused every range is served from the
+    in-memory last hour (its own span when shorter) at `raw` resolution with `partial` true. The detail interval and every retention length
+    are settings (`collector_settings`, `retention_settings`), never constants.
+
+    **Errors.** Every non-200 response is an `ErrorResponse`, a code from a fixed list and nothing
+    else. A request that fails the parameter rules of this file is a 400, an unknown path a 404 and a
+    method other than GET a 405 (`bad_method`); any other failure is a 500 `internal`. Server code
+    builds its handler through `internal/api.NewHandler`, which installs these mappings.
+
+    **Derived figures.** `contextLimitTokens` is the context window of the model label: 1,000,000 for
+    a label ending in `[1m]`, otherwise 200,000. `rereadTarget` is the `reread_target_share` row of
+    `display_settings` (default 0.15).
+servers:
+  - url: http://127.0.0.1:8790
+tags:
+  - name: system
+  - name: transcripts
+  - name: metrics
+paths:
+  /api/live:
+    get:
+      operationId: getLive
+      tags: [system]
+      summary: Server-Sent Events stream of status, machine, Docker, live-session and activity updates
+      responses:
+        '200':
+          description: An event stream; each `data:` line holds one LiveEvent as JSON.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/LiveEvent'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/status:
+    get:
+      operationId: getStatus
+      tags: [system]
+      summary: Scanner, collector, guard and database state for the header and status line
+      responses:
+        '200':
+          description: Current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/meta:
+    get:
+      operationId: getMeta
+      tags: [system]
+      summary: Filter values (projects, models, agent types, stacks), band bounds and retention settings
+      responses:
+        '200':
+          description: Dimension lists for filters and legends.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaResponse'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/overview:
+    get:
+      operationId: getOverview
+      tags: [transcripts]
+      summary: Overview tab
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Overview figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/tokens:
+    get:
+      operationId: getTokens
+      tags: [transcripts]
+      summary: Tokens tab (tokens and estimated cost by model, kind and day)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Token and cost figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/context:
+    get:
+      operationId: getContext
+      tags: [transcripts]
+      summary: Context tab (context size, bands, re-reads, compactions)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Context figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/NotForClient'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/sessions:
+    get:
+      operationId: getSessions
+      tags: [transcripts]
+      summary: Sessions tab (session map, timeline, compactions)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Sessions in the period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/sessions/{session}:
+    get:
+      operationId: getSession
+      tags: [transcripts]
+      summary: One session's detail (selected planet on the Sessions tab)
+      parameters:
+        - name: session
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SessionLabel'
+        - name: project
+          in: query
+          required: true
+          description: Session labels are 8 characters and can repeat across projects,
+            so the project is part of the key.
+          schema:
+            $ref: '#/components/schemas/ProjectLabel'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Session detail over the session's whole history, not limited to a period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/subagents:
+    get:
+      operationId: getSubagents
+      tags: [transcripts]
+      summary: Sub-agents tab (runs, context and cost per agent type)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Sub-agent figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubagentsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/NotForClient'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/fills:
+    get:
+      operationId: getFills
+      tags: [transcripts]
+      summary: Fills tab (tool results that fill the context)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+        - name: group
+          in: query
+          required: false
+          description: Grouping of the `groups` list (the GROUP BY switch).
+          schema:
+            $ref: '#/components/schemas/FillsGroup'
+      responses:
+        '200':
+          description: Tool result figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FillsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/NotForClient'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/guard:
+    get:
+      operationId: getGuard
+      tags: [transcripts]
+      summary: Guard tab (per-call guard log figures and tool errors)
+      parameters:
+        - $ref: '#/components/parameters/TranscriptRange'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Project'
+        - $ref: '#/components/parameters/Client'
+      responses:
+        '200':
+          description: Guard figures.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/NotForClient'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/machine:
+    get:
+      operationId: getMachine
+      tags: [metrics]
+      summary: Machine tab (CPU per core, memory, network per interface, disks, top apps)
+      parameters:
+        - $ref: '#/components/parameters/MetricsRange'
+      responses:
+        '200':
+          description: Machine snapshot and history for the range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/docker:
+    get:
+      operationId: getDocker
+      tags: [metrics]
+      summary: Docker tab (Docker VM, containers by stack, disk use, events)
+      parameters:
+        - $ref: '#/components/parameters/MetricsRange'
+        - name: stack
+          in: query
+          required: false
+          description: Limit to one Compose project; absent means all stacks.
+          schema:
+            $ref: '#/components/schemas/StackLabel'
+      responses:
+        '200':
+          description: Docker snapshot and history for the range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DockerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  parameters:
+    TranscriptRange:
+      name: range
+      in: query
+      required: false
+      description: Preset period ending today (see Transcript periods); must be absent with `from` and `to`.
+      schema:
+        $ref: '#/components/schemas/TranscriptRange'
+    From:
+      name: from
+      in: query
+      required: false
+      description: First local day of a custom period (inclusive), not before 2000-01-01; needs `to`.
+      schema:
+        type: string
+        format: date
+    To:
+      name: to
+      in: query
+      required: false
+      description: Last local day of a custom period (inclusive), from `from` to today, at most 366 days in all.
+      schema:
+        type: string
+        format: date
+    Project:
+      name: project
+      in: query
+      required: false
+      description: Limit to one project; absent means all projects.
+      schema:
+        $ref: '#/components/schemas/ProjectLabel'
+    Client:
+      name: client
+      in: query
+      required: false
+      description: >-
+        Limit to one coding agent; absent means all clients added up. Figures that exist only for Claude Code are
+        refused (`NotForClient`) or marked by `claudeOnly` for any other client, never filled with Claude numbers.
+      schema:
+        $ref: '#/components/schemas/Client'
+    MetricsRange:
+      name: range
+      in: query
+      required: false
+      description: Window ending now; it also picks the resolution (see Metric ranges).
+      schema:
+        $ref: '#/components/schemas/MetricsRange'
+  responses:
+    NotForClient:
+      description: >-
+        The figures of this tab exist only for Claude Code (context bands and limit, compactions, sub-agents, tool
+        results, Guard) and `client` names another client; code `not_for_client`, shown as "not available for this
+        client".
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: A parameter failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: No such item in the period.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: History is paused because PostgreSQL is unreachable; live views keep working.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error:
+      description: Any other failure (`not_found` for an unknown path, `bad_method`, `internal`); only the code is sent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ProjectLabel:
+      description: >-
+        Project folder label from the labels gate (home-relative, worktree suffix removed), or `home`, `other`,
+        `scratch (tmp)`. It starts with a letter or digit, so it can never be a dot name or an encoded absolute path.
+      type: string
+      x-cm-label: project
+      minLength: 1
+      maxLength: 120
+      pattern: '^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,119}|scratch \(tmp\))$'
+    ModelLabel:
+      description: Model id as its client records it (claude-*, gpt-*, gemini-* and similar), lowercase words joined by one of `.-_:`, or `unknown`. No slash, so no path passes.
+      type: string
+      x-cm-label: model
+      minLength: 1
+      maxLength: 60
+      pattern: '^[a-z0-9]{1,24}(?:[._:-][a-z0-9]{1,24}){0,11}(?:\[[0-9]{1,2}[a-z]\])?$'
+    AgentTypeLabel:
+      description: Sub-agent type from the labels gate, or `unknown`.
+      type: string
+      x-cm-label: agentType
+      minLength: 1
+      maxLength: 60
+      pattern: '^[A-Za-z][A-Za-z0-9._:-]{0,59}$'
+    ToolLabel:
+      description: >-
+        Built-in tool name, `Read: whole`, `Read: ranged` or `Read: image`, `Bash: <family>` with the family
+        taken only from the Bash family allowlist (`Families` in server/internal/labels, spelled out in the pattern)
+        or `Bash: other`, `Bash: script`, `Bash: cd` and `Bash: shell loop`, a strict `mcp__server__tool`
+        name, or `other`.
+      type: string
+      x-cm-label: tool
+      minLength: 1
+      maxLength: 125
+      pattern: '^(?:[A-Za-z][A-Za-z0-9_-]{0,59}|Read: (?:whole|ranged|image)|Bash: (?:artisan|awk|aws|az|base64|basename|bash|bc|biome|brew|bun|bundle|cargo|cat|cd|chmod|chown|cloudflared|cmake|cmp|column|comm|command|composer|convert|cp|curl|cut|date|defaults|deno|df|diff|dig|dirname|dnode|docker|docker-compose|dphp|dredis|dsql|du|echo|egrep|env|eslint|exiftool|expr|false|fd|ffmpeg|ffprobe|file|find|gcloud|gem|gh|git|gitleaks|go|gofmt|gofumpt|golangci-lint|govulncheck|grep|gunzip|gzip|head|helm|hexdump|hostname|http|id|identify|jest|jq|kill|kubectl|launchctl|less|ln|ls|lsof|magento-cloud|magick|make|mariadb|md5|md5sum|mkdir|mv|mypy|mysql|mysqldump|nc|netstat|nginx|nl|node|npm|npx|nvm|od|open|openssl|osascript|other|paste|pbcopy|pbpaste|perl|pg_dump|pgrep|php|ping|pip|pip3|pkill|playwright|plutil|pm2|pnpm|prettier|printf|ps|psql|pwd|pytest|python|python3|readlink|realpath|redis-cli|rg|rm|rmdir|rsync|ruby|ruff|rustc|scp|script|sed|semgrep|seq|serverless|sftp|sh|sha1sum|sha256sum|shasum|shell loop|shopify|sips|sleep|sls|sort|sqlite3|ssh|stack-doctor|stat|staticcheck|strings|sw_vers|sysctl|tail|tar|tee|terraform|test|top|touch|tr|trivy|true|tsc|tsx|type|uname|uniq|unzip|uv|uvx|vitest|vm_stat|wait|wc|wget|which|whoami|wrangler|xargs|xxd|yarn|yes|yq|zip|zsh)|mcp__[A-Za-z0-9_-]{1,60}__[A-Za-z0-9_-]{1,60})$'
+    SessionLabel:
+      description: >-
+        First 8 characters of the session UUID, or `unknown` when a transcript has none; identifies a session on
+        this machine without holding the whole ID.
+      type: string
+      x-cm-label: session
+      minLength: 7
+      maxLength: 8
+      pattern: '^(?:[0-9a-f]{8}|unknown)$'
+    Hash16:
+      description: First 16 hex characters of a SHA-256; used only to tell items apart.
+      type: string
+      x-cm-label: hash
+      minLength: 16
+      maxLength: 16
+      pattern: '^[0-9a-f]{16}$'
+    ErrorCode:
+      description: Scanner or collector error code such as ELOCKLOST or EACCES; never message text.
+      type: string
+      x-cm-label: errorCode
+      minLength: 2
+      maxLength: 32
+      pattern: '^[A-Z][A-Z0-9_]{1,31}$'
+    ContainerLabel:
+      description: Docker container name as Docker accepts it, after the labels gate.
+      type: string
+      x-cm-label: container
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'
+    StackLabel:
+      description: Docker Compose project name, or `none` for a container outside Compose.
+      type: string
+      x-cm-label: stack
+      minLength: 1
+      maxLength: 63
+      pattern: '^[a-z0-9][a-z0-9_-]{0,62}$'
+    AppLabel:
+      description: Application display name (bundle name), never a command line or path.
+      type: string
+      x-cm-label: app
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9 ._()+&-]{0,63}$'
+    VolumeLabel:
+      description: Mounted volume name as Finder shows it, never a mount path.
+      type: string
+      x-cm-label: volume
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9 ._()+&-]{0,63}$'
+    InterfaceLabel:
+      description: Network service or interface name (for example Wi-Fi, Ethernet, en0).
+      type: string
+      x-cm-label: interface
+      minLength: 1
+      maxLength: 32
+      pattern: '^[A-Za-z0-9][A-Za-z0-9 ._()+-]{0,31}$'
+    FilesystemLabel:
+      description: File system type (for example apfs, hfs, exfat, msdos).
+      type: string
+      x-cm-label: filesystem
+      minLength: 1
+      maxLength: 16
+      pattern: '^[a-z0-9][a-z0-9_-]{0,15}$'
+    Client:
+      description: Coding agent whose usage records a row comes from (`server/internal/clients`).
+      type: string
+      enum: [claude-code, codex, opencode, gemini-cli, qwen-code, copilot-cli]
+    ClientScanCounts:
+      type: object
+      additionalProperties: false
+      required: [client, skippedLines, unreadable]
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        skippedLines:
+          type: integer
+          format: int64
+        unreadable:
+          type: integer
+          format: int64
+    ClientInfo:
+      type: object
+      additionalProperties: false
+      required: [id, verified]
+      properties:
+        id:
+          $ref: '#/components/schemas/Client'
+        verified:
+          description: >-
+            True when the reader was checked against real records of this client (Claude Code, Codex); false
+            shows "format unverified" because it was built from upstream source only.
+          type: boolean
+    ClaudeOnly:
+      description: >-
+        Whether the Claude-only figures of this response apply: false when the `client` filter (or, for one
+        session, the session's client) is not Claude Code. They are then empty or zero and shown as "not available
+        for this client". Overview: `bands`, `sessionMap.withSubagents`,
+        `compactions`. Sessions:
+        `totals.subagentRuns`, `totals.compactions`, `compactions`. Session detail: `subagents`, `compactions` and
+        the summary's `subagentRuns`, `compactions`, `contextLimitTokens`.
+      type: object
+      additionalProperties: false
+      required: [available]
+      properties:
+        available:
+          type: boolean
+    TranscriptRange:
+      type: string
+      enum: [today, 7d, 14d, 30d, 90d, all]
+      default: 30d
+    MetricsRange:
+      type: string
+      enum: [live, 5m, 15m, 1h, 24h, 7d]
+      default: live
+    Resolution:
+      description: Spacing of the points in a series; `raw` collector samples (`detailIntervalSeconds` apart), `1m` and `1h` rollups.
+      type: string
+      enum: [raw, 1m, 1h]
+    Scope:
+      type: string
+      enum: [main, sub]
+    TokenKind:
+      type: string
+      enum: [input, cacheWrite, cacheRead, output]
+    CompactionTrigger:
+      type: string
+      enum: [auto, manual]
+    SessionState:
+      type: string
+      enum: [live, idle, ended]
+    FillsGroup:
+      type: string
+      enum: [tool, project, sizeBand]
+      default: tool
+    ErrorClass:
+      type: string
+      enum: [blocked by hook, denied, timeout, non-zero exit, not found, other]
+    Health:
+      type: string
+      enum: [nominal, degraded, failed]
+    ScanState:
+      type: string
+      enum: [ok, running, locked, failed, never_ran]
+    CollectorState:
+      description: >-
+        `disabled` means the source is absent on this machine (no Docker socket; no guard install and no guard log)
+        and the page hides its tab; `unavailable` is a source that exists but does not answer, such as a stopped Docker.
+      type: string
+      enum: [ok, starting, unavailable, failed, disabled]
+    DatabaseState:
+      type: string
+      enum: [ok, unavailable, migrating]
+    CoreKind:
+      type: string
+      enum: [performance, efficiency]
+    MemoryPressure:
+      type: string
+      enum: [normal, warning, critical]
+    VolumeKind:
+      type: string
+      enum: [internal, external, network, disk_image, other]
+    ContainerState:
+      type: string
+      enum: [created, running, paused, restarting, removing, exited, dead]
+    ContainerHealth:
+      type: string
+      enum: [healthy, unhealthy, starting, none]
+    DockerEventKind:
+      description: Container event kinds the collector keeps; exec events are dropped, unknown actions become `other`.
+      type: string
+      enum: [create, start, restart, stop, die, kill, oom, pause, unpause, destroy, rename, update, health_healthy,
+        health_unhealthy, health_starting, health, other]
+    GuardMode:
+      type: string
+      enum: [go, node, shadow, unknown]
+    ActivityKind:
+      type: string
+      enum: [scan_ok, scan_failed, scan_locked, session_start, session_idle, compaction, subagent_start, subagent_end, tool_errors]
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum: [bad_range, bad_date, bad_label, bad_group, bad_request, bad_method, not_found, history_paused, unavailable, internal, not_for_client]
+    Period:
+      description: The period the figures cover and the equally long period before it; `previous*` is null for `all`.
+      type: object
+      additionalProperties: false
+      required: [from, to, days, previousFrom, previousTo, partial, previousPartial]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: integer
+          format: int32
+        previousFrom:
+          type: string
+          format: date
+          nullable: true
+        previousTo:
+          type: string
+          format: date
+          nullable: true
+        partial:
+          description: True when the period starts before the first day with history.
+          type: boolean
+        previousPartial:
+          description: The same for the previous period; false for `all`.
+          type: boolean
+    Delta:
+      description: A figure for the period and the same figure for the previous period (null when there is none).
+      type: object
+      additionalProperties: false
+      required: [value, previous]
+      properties:
+        value:
+          type: number
+          format: double
+        previous:
+          type: number
+          format: double
+          nullable: true
+    TokenMix:
+      type: object
+      additionalProperties: false
+      required: [input, cacheWrite, cacheRead, output]
+      properties:
+        input:
+          type: integer
+          format: int64
+        cacheWrite:
+          type: integer
+          format: int64
+        cacheRead:
+          type: integer
+          format: int64
+        output:
+          type: integer
+          format: int64
+    ScopeShare:
+      type: object
+      additionalProperties: false
+      required: [main, sub]
+      properties:
+        main:
+          type: number
+          format: double
+        sub:
+          type: number
+          format: double
+    TokenBand:
+      description: >-
+        A size band in tokens; `maxTokens` is exclusive and null for the open top band. Stored figures keep the
+        bounds in force when they were written, so editing the bands never reinterprets history.
+      type: object
+      additionalProperties: false
+      required: [minTokens, maxTokens]
+      properties:
+        minTokens:
+          type: integer
+          format: int64
+        maxTokens:
+          type: integer
+          format: int64
+          nullable: true
+    RetentionTier:
+      type: object
+      additionalProperties: false
+      description: How long a tier is kept; `months` and `days` are both null for a tier kept forever.
+      required: [tier, months, days]
+      properties:
+        tier:
+          type: string
+          enum: [raw, rollup_1m, rollup_1h, events]
+        months:
+          type: integer
+          format: int32
+          nullable: true
+        days:
+          type: integer
+          format: int32
+          nullable: true
+    StatusResponse:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, health, scan, machine, docker, guard, database, liveSessions]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        health:
+          $ref: '#/components/schemas/Health'
+        scan:
+          $ref: '#/components/schemas/ScanStatus'
+        machine:
+          $ref: '#/components/schemas/CollectorStatus'
+        docker:
+          $ref: '#/components/schemas/CollectorStatus'
+        guard:
+          $ref: '#/components/schemas/CollectorStatus'
+        database:
+          $ref: '#/components/schemas/DatabaseStatus'
+        liveSessions:
+          type: integer
+          format: int32
+    ScanStatus:
+      type: object
+      additionalProperties: false
+      required: [state, lastRunAt, lastChangeAt, nextRunInSeconds, intervalSeconds, errorCode, writeErrorCode,
+        writePending, keptDays, transcripts, lines, skippedLines, unreadable, unrebuilt, itemsDropped,
+        duplicateLinesDropped, unpricedModels, toolErrors, byClient]
+      properties:
+        state:
+          $ref: '#/components/schemas/ScanState'
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastChangeAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextRunInSeconds:
+          type: integer
+          format: int32
+          nullable: true
+        intervalSeconds:
+          description: The wait the next run was scheduled after, the span the next-scan countdown runs over.
+          type: integer
+          format: int32
+          nullable: true
+        errorCode:
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          nullable: true
+        writeErrorCode:
+          description: >-
+            Why the last rebuild is not fully in PostgreSQL (for example EPARTIAL when some transcripts could not be
+            rebuilt, or a connection or SQLSTATE code), or EREPRICE_<code> (bare EREPRICE when that would pass 32
+            characters) when the rebuilt days were stored but repricing the kept days failed; null when everything
+            was stored.
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          nullable: true
+        writePending:
+          description: True while the next run retries storing the last rebuild or repricing the kept days.
+          type: boolean
+        keptDays:
+          description: Stored days left as they are because a transcript that went into them is gone.
+          type: integer
+          format: int64
+        transcripts:
+          type: integer
+          format: int64
+        lines:
+          type: integer
+          format: int64
+        skippedLines:
+          type: integer
+          format: int64
+        unreadable:
+          type: integer
+          format: int64
+        unrebuilt:
+          type: integer
+          format: int64
+        byClient:
+          description: >-
+            skippedLines and unreadable split by client, one row per client found on this machine as of the last
+            rebuild. unreadable here counts what a client's reader could not list or read; a file the scanner could
+            not open or save counts only in the total.
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientScanCounts'
+        itemsDropped:
+          type: integer
+          format: int64
+        duplicateLinesDropped:
+          type: integer
+          format: int64
+        unpricedModels:
+          type: integer
+          format: int32
+        toolErrors:
+          description: Tool errors seen today, for the status line.
+          type: integer
+          format: int64
+    CollectorStatus:
+      type: object
+      additionalProperties: false
+      required: [state, lastAt, intervalSeconds, errorCode]
+      properties:
+        state:
+          $ref: '#/components/schemas/CollectorState'
+        lastAt:
+          type: string
+          format: date-time
+          nullable: true
+        intervalSeconds:
+          type: integer
+          format: int32
+        errorCode:
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          nullable: true
+    DatabaseStatus:
+      type: object
+      additionalProperties: false
+      required: [state, historyPaused, schemaVersion, historyErrorCode, droppedRows, upkeepErrorCode, upkeepLastAt]
+      properties:
+        state:
+          $ref: '#/components/schemas/DatabaseState'
+        historyPaused:
+          type: boolean
+        schemaVersion:
+          description: Highest applied migration; state is `migrating` while any migration the server knows is missing.
+          type: integer
+          format: int64
+          nullable: true
+        historyErrorCode:
+          description: Why history writes are paused or partly refused; null while they succeed.
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          nullable: true
+        droppedRows:
+          description: History rows given up since the server started.
+          type: object
+          additionalProperties: false
+          required: [rejected, overflow, expired]
+          properties:
+            rejected:
+              description: Refused by the schema.
+              type: integer
+              format: int64
+            overflow:
+              description: Past the count cap while PostgreSQL was away.
+              type: integer
+              format: int64
+            expired:
+              description: Past the age cap while PostgreSQL was away.
+              type: integer
+              format: int64
+        upkeepErrorCode:
+          description: Why the last rollup, partition or retention round failed; null when it succeeded.
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          nullable: true
+        upkeepLastAt:
+          description: When a rollup, partition and retention round last succeeded.
+          type: string
+          format: date-time
+          nullable: true
+    MetaResponse:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, firstDay, lastDay, clients, projects, models, agentTypes, tools, stacks, contextBands, resultSizeBands, rereadTarget, retention]
+      properties:
+        clients:
+          description: >-
+            Clients found on this machine, in the order of `Client`: a reader that detects the client's records,
+            or any stored row of it.
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientInfo'
+        generatedAt:
+          type: string
+          format: date-time
+        firstDay:
+          type: string
+          format: date
+          nullable: true
+        lastDay:
+          type: string
+          format: date
+          nullable: true
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectLabel'
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelLabel'
+        agentTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentTypeLabel'
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolLabel'
+        stacks:
+          type: array
+          items:
+            $ref: '#/components/schemas/StackLabel'
+        contextBands:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenBand'
+        resultSizeBands:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenBand'
+        rereadTarget:
+          description: Target re-read share shown as "target 15%" (see Derived figures).
+          type: number
+          format: double
+        retention:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetentionTier'
+    LiveSession:
+      type: object
+      additionalProperties: false
+      required: [session, project, client, state, model, startedAt, lastActivityAt, contextTokens, contextLimitTokens, tokens, subagentRuns]
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        session:
+          $ref: '#/components/schemas/SessionLabel'
+        project:
+          $ref: '#/components/schemas/ProjectLabel'
+        state:
+          $ref: '#/components/schemas/SessionState'
+        model:
+          $ref: '#/components/schemas/ModelLabel'
+        startedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        contextTokens:
+          type: integer
+          format: int64
+        contextLimitTokens:
+          description: Context window of a Claude Code session (see Derived figures); 0 for any other client.
+          type: integer
+          format: int64
+        tokens:
+          type: integer
+          format: int64
+        subagentRuns:
+          type: integer
+          format: int32
+    DailyTokens:
+      type: object
+      additionalProperties: false
+      required: [day, mainTokens, subTokens, costUsd, calls, rereadShare]
+      properties:
+        day:
+          type: string
+          format: date
+        mainTokens:
+          type: integer
+          format: int64
+        subTokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+        calls:
+          type: integer
+          format: int64
+        rereadShare:
+          description: Cache-read tokens over context tokens of the day; 0 when the day has no calls.
+          type: number
+          format: double
+    BandCalls:
+      type: object
+      additionalProperties: false
+      required: [band, mainCalls, subCalls]
+      properties:
+        band:
+          $ref: '#/components/schemas/TokenBand'
+        mainCalls:
+          type: integer
+          format: int64
+        subCalls:
+          type: integer
+          format: int64
+    OverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [period, claudeOnly, byClient, unpriced, tokens, costUsd, calls, rereadShare, rereadTarget, scopeShare, tokenMix, daily, peakDay, contextBands, bands, liveSessions, sessionMap, compactions]
+      properties:
+        claudeOnly:
+          $ref: '#/components/schemas/ClaudeOnly'
+        byClient:
+          $ref: '#/components/schemas/ByClient'
+        unpriced:
+          $ref: '#/components/schemas/Unpriced'
+        period:
+          $ref: '#/components/schemas/Period'
+        tokens:
+          $ref: '#/components/schemas/Delta'
+        costUsd:
+          $ref: '#/components/schemas/Delta'
+        calls:
+          $ref: '#/components/schemas/Delta'
+        rereadShare:
+          $ref: '#/components/schemas/Delta'
+        rereadTarget:
+          type: number
+          format: double
+        scopeShare:
+          $ref: '#/components/schemas/ScopeShare'
+        tokenMix:
+          $ref: '#/components/schemas/TokenMix'
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyTokens'
+        peakDay:
+          allOf:
+            - $ref: '#/components/schemas/DailyTokens'
+          nullable: true
+        contextBands:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenBand'
+        bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/BandCalls'
+        liveSessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiveSession'
+        sessionMap:
+          type: object
+          additionalProperties: false
+          required: [sessions, live, withSubagents]
+          properties:
+            sessions:
+              type: integer
+              format: int32
+            live:
+              type: integer
+              format: int32
+            withSubagents:
+              type: integer
+              format: int32
+        compactions:
+          $ref: '#/components/schemas/CompactionSummary'
+    ModelCost:
+      type: object
+      additionalProperties: false
+      required: [model, tokens, costUsd, share]
+      properties:
+        model:
+          $ref: '#/components/schemas/ModelLabel'
+        tokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+        share:
+          description: Share of the period's tokens.
+          type: number
+          format: double
+    ClientCost:
+      type: object
+      additionalProperties: false
+      required: [client, tokens, costUsd, share]
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        tokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+        share:
+          description: Share of the period's tokens.
+          type: number
+          format: double
+    ByClient:
+      description: >-
+        Tokens and cost per coding agent for the period and the other active filters, most tokens first. Under a
+        `client` filter it holds that one client.
+      type: array
+      items:
+        $ref: '#/components/schemas/ClientCost'
+    UnpricedModel:
+      type: object
+      additionalProperties: false
+      required: [client, model]
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        model:
+          $ref: '#/components/schemas/ModelLabel'
+    Unpriced:
+      description: >-
+        (client, model) pairs with calls but no price in the period, so the cost figures leave them out. Days are
+        matched, the `project` filter is not; empty when every call is priced.
+      type: array
+      items:
+        $ref: '#/components/schemas/UnpricedModel'
+    KindCost:
+      type: object
+      additionalProperties: false
+      required: [kind, tokens, costUsd]
+      properties:
+        kind:
+          $ref: '#/components/schemas/TokenKind'
+        tokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+    RecordedCost:
+      description: >-
+        Clients in the period that store their own cost per call (Copilot CLI, opencode), with their tokens and that
+        cost. The cost has no split by kind, so it is not in `byKind`; it is in `costUsd`. Empty clients and zeros
+        when none.
+      type: object
+      additionalProperties: false
+      required: [clients, tokens, costUsd]
+      properties:
+        clients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Client'
+        tokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+    DayCost:
+      type: object
+      additionalProperties: false
+      required: [day, tokens, costUsd, topModel]
+      properties:
+        day:
+          type: string
+          format: date
+        tokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+        topModel:
+          allOf:
+            - $ref: '#/components/schemas/ModelLabel'
+          nullable: true
+    TokensResponse:
+      type: object
+      additionalProperties: false
+      required: [period, byClient, unpriced, tokens, costUsd, avgCostPerDayUsd, peakCostDay, byModel, byKind, recorded,
+        daily, topDays]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        byClient:
+          $ref: '#/components/schemas/ByClient'
+        unpriced:
+          $ref: '#/components/schemas/Unpriced'
+        tokens:
+          $ref: '#/components/schemas/Delta'
+        costUsd:
+          $ref: '#/components/schemas/Delta'
+        avgCostPerDayUsd:
+          type: number
+          format: double
+        peakCostDay:
+          allOf:
+            - $ref: '#/components/schemas/DayCost'
+          nullable: true
+        byModel:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelCost'
+        byKind:
+          description: >-
+            Tokens and cost per kind for the clients priced per token; clients that record their own cost are left
+            out, because that cost has no input or output split (see `recorded`).
+          type: array
+          items:
+            $ref: '#/components/schemas/KindCost'
+        recorded:
+          $ref: '#/components/schemas/RecordedCost'
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DayCost'
+        topDays:
+          description: Most expensive days, highest first, at most 10.
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/DayCost'
+    Compaction:
+      type: object
+      additionalProperties: false
+      required: [at, project, session, scope, trigger, tokensBefore, tokensAfter]
+      properties:
+        at:
+          type: string
+          format: date-time
+        project:
+          $ref: '#/components/schemas/ProjectLabel'
+        session:
+          $ref: '#/components/schemas/SessionLabel'
+        scope:
+          $ref: '#/components/schemas/Scope'
+        trigger:
+          $ref: '#/components/schemas/CompactionTrigger'
+        tokensBefore:
+          type: integer
+          format: int64
+        tokensAfter:
+          description: Context of the first call after the boundary; null until that call exists.
+          type: integer
+          format: int64
+          nullable: true
+    CompactionSummary:
+      type: object
+      additionalProperties: false
+      required: [count, avgFreedTokens, byDay, recent]
+      properties:
+        count:
+          type: integer
+          format: int64
+        avgFreedTokens:
+          type: integer
+          format: int64
+          nullable: true
+        byDay:
+          description: Compactions per day of the period, days without one left out.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, count]
+            properties:
+              day:
+                type: string
+                format: date
+              count:
+                type: integer
+                format: int32
+        recent:
+          description: Latest compactions, newest first, at most 20.
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Compaction'
+    ContextBandStats:
+      type: object
+      additionalProperties: false
+      required: [band, calls, contextTokens, cacheReadTokens]
+      properties:
+        band:
+          $ref: '#/components/schemas/TokenBand'
+        calls:
+          type: integer
+          format: int64
+        contextTokens:
+          type: integer
+          format: int64
+        cacheReadTokens:
+          type: integer
+          format: int64
+    ContextResponse:
+      type: object
+      additionalProperties: false
+      required: [period, peak, avgContextPerCall, rereadShare, rereadTarget, byProject, contextBands, bands, daily, compactions]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        peak:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [contextTokens, contextLimitTokens, project, day]
+          properties:
+            contextTokens:
+              type: integer
+              format: int64
+            contextLimitTokens:
+              type: integer
+              format: int64
+            project:
+              $ref: '#/components/schemas/ProjectLabel'
+            day:
+              type: string
+              format: date
+        avgContextPerCall:
+          $ref: '#/components/schemas/Delta'
+        rereadShare:
+          $ref: '#/components/schemas/Delta'
+        rereadTarget:
+          type: number
+          format: double
+        byProject:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [project, sessions, compactions, peakContextTokens, contextLimitTokens]
+            properties:
+              project:
+                $ref: '#/components/schemas/ProjectLabel'
+              sessions:
+                type: integer
+                format: int32
+              compactions:
+                type: integer
+                format: int32
+              peakContextTokens:
+                type: integer
+                format: int64
+              contextLimitTokens:
+                type: integer
+                format: int64
+        contextBands:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenBand'
+        bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextBandStats'
+        daily:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, peakContextTokens, compactions, rereadShare, avgContextTokens]
+            properties:
+              day:
+                type: string
+                format: date
+              peakContextTokens:
+                type: integer
+                format: int64
+              compactions:
+                type: integer
+                format: int32
+              rereadShare:
+                description: Cache-read tokens over context tokens of the day; 0 when the day has no calls.
+                type: number
+                format: double
+              avgContextTokens:
+                description: Context tokens per call of the day; 0 when the day has no calls.
+                type: number
+                format: double
+        compactions:
+          $ref: '#/components/schemas/CompactionSummary'
+    SessionSummary:
+      type: object
+      additionalProperties: false
+      required: [session, project, client, state, model, startedAt, lastActivityAt, tokens, peakContextTokens, contextLimitTokens, calls, costUsd, subagentRuns, compactions]
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        session:
+          $ref: '#/components/schemas/SessionLabel'
+        project:
+          $ref: '#/components/schemas/ProjectLabel'
+        state:
+          $ref: '#/components/schemas/SessionState'
+        model:
+          $ref: '#/components/schemas/ModelLabel'
+        startedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        tokens:
+          type: integer
+          format: int64
+        peakContextTokens:
+          type: integer
+          format: int64
+        contextLimitTokens:
+          description: Context window of a Claude Code session (see Derived figures); 0 for any other client.
+          type: integer
+          format: int64
+        calls:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+        subagentRuns:
+          type: integer
+          format: int32
+        compactions:
+          type: integer
+          format: int32
+    SessionsResponse:
+      type: object
+      additionalProperties: false
+      required: [period, claudeOnly, totals, projects, sessions, compactions]
+      properties:
+        claudeOnly:
+          $ref: '#/components/schemas/ClaudeOnly'
+        period:
+          $ref: '#/components/schemas/Period'
+        totals:
+          type: object
+          additionalProperties: false
+          required: [sessions, live, subagentRuns, compactions]
+          properties:
+            sessions:
+              type: integer
+              format: int32
+            live:
+              type: integer
+              format: int32
+            subagentRuns:
+              type: integer
+              format: int32
+            compactions:
+              type: integer
+              format: int32
+        projects:
+          description: Orbits of the session map, largest token share first.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [project, sessions, tokens, share]
+            properties:
+              project:
+                $ref: '#/components/schemas/ProjectLabel'
+              sessions:
+                type: integer
+                format: int32
+              tokens:
+                type: integer
+                format: int64
+              share:
+                type: number
+                format: double
+        sessions:
+          description: Sessions in the period, latest activity first, at most 500.
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        compactions:
+          $ref: '#/components/schemas/CompactionSummary'
+    SessionDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [summary, claudeOnly, contextTokens, tokenMix, subagents, compactions]
+      properties:
+        claudeOnly:
+          $ref: '#/components/schemas/ClaudeOnly'
+        summary:
+          $ref: '#/components/schemas/SessionSummary'
+        contextTokens:
+          description: Context of the session's latest main call (`last_context_tokens` of its latest main row).
+          type: integer
+          format: int64
+        tokenMix:
+          $ref: '#/components/schemas/TokenMix'
+        subagents:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [agentType, runs, tokens]
+            properties:
+              agentType:
+                $ref: '#/components/schemas/AgentTypeLabel'
+              runs:
+                type: integer
+                format: int32
+              tokens:
+                type: integer
+                format: int64
+        compactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Compaction'
+    AgentTypeStats:
+      type: object
+      additionalProperties: false
+      required: [agentType, topModel, runs, calls, tokens, cacheReadTokens, contextTokens, avgFirstContextTokens, avgPeakContextTokens, costUsd]
+      properties:
+        agentType:
+          $ref: '#/components/schemas/AgentTypeLabel'
+        topModel:
+          $ref: '#/components/schemas/ModelLabel'
+        runs:
+          type: integer
+          format: int64
+        calls:
+          type: integer
+          format: int64
+        tokens:
+          type: integer
+          format: int64
+        cacheReadTokens:
+          type: integer
+          format: int64
+        contextTokens:
+          type: integer
+          format: int64
+        avgFirstContextTokens:
+          type: integer
+          format: int64
+        avgPeakContextTokens:
+          type: integer
+          format: int64
+        costUsd:
+          type: number
+          format: double
+    SubagentsResponse:
+      type: object
+      additionalProperties: false
+      required: [period, runs, scopeShare, costUsd, totalCostUsd, rereadTarget, types, daily, scopeDaily]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        runs:
+          $ref: '#/components/schemas/Delta'
+        scopeShare:
+          $ref: '#/components/schemas/ScopeShare'
+        costUsd:
+          description: Sub-agent cost in the period.
+          type: number
+          format: double
+        totalCostUsd:
+          description: Main plus sub-agent cost in the period.
+          type: number
+          format: double
+        rereadTarget:
+          type: number
+          format: double
+        types:
+          description: Every agent type in the period, most runs first.
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentTypeStats'
+        daily:
+          description: Runs per day per type over the last 14 days of the period.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, agentType, runs]
+            properties:
+              day:
+                type: string
+                format: date
+              agentType:
+                $ref: '#/components/schemas/AgentTypeLabel'
+              runs:
+                type: integer
+                format: int32
+        scopeDaily:
+          description: Sub-agent token share and cost for every day of the period that has calls, oldest first.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, subShare, subCostUsd]
+            properties:
+              day:
+                type: string
+                format: date
+              subShare:
+                description: Sub-agent tokens over all tokens of the day, a fraction 0-1.
+                type: number
+                format: double
+              subCostUsd:
+                type: number
+                format: double
+    ToolStats:
+      type: object
+      additionalProperties: false
+      required: [tool, results, tokens, weightedTokens, maxTokens, p95Tokens, repeatMeasuredResults, costUsd]
+      properties:
+        tool:
+          $ref: '#/components/schemas/ToolLabel'
+        results:
+          type: integer
+          format: int64
+        tokens:
+          type: integer
+          format: int64
+        weightedTokens:
+          description: Estimated tokens times the later calls that re-sent them.
+          type: integer
+          format: int64
+        maxTokens:
+          type: integer
+          format: int64
+        p95Tokens:
+          description: Upper bound of the size band that holds the 95th percentile result.
+          type: integer
+          format: int64
+          nullable: true
+        repeatResults:
+          description: >-
+            Results whose content the same transcript had already returned for the same tool label. Results
+            estimated under 64 tokens and results that are errors are never counted. Counts only the days that
+            measured it; left out when `repeatMeasuredResults` is 0.
+          type: integer
+          format: int64
+        repeatMeasuredResults:
+          description: >-
+            Results of the days that measured `repeatResults`. Lower than `results` when the period holds days
+            stored before repeats were measured.
+          type: integer
+          format: int64
+          minimum: 0
+        costUsd:
+          description: Weighted tokens, each re-send priced at the cache-read rate of the model that re-sent it.
+          type: number
+          format: double
+    FillsResponse:
+      type: object
+      additionalProperties: false
+      required: [period, group, results, tokens, contextShare, largest, tools, groups, top, daily, byProject, resultSizeBands]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        group:
+          $ref: '#/components/schemas/FillsGroup'
+        results:
+          $ref: '#/components/schemas/Delta'
+        tokens:
+          type: integer
+          format: int64
+        contextShare:
+          description: Weighted tool-result tokens divided by all context tokens.
+          type: number
+          format: double
+        largest:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [tokens, tool, project, day]
+          properties:
+            tokens:
+              type: integer
+              format: int64
+            tool:
+              $ref: '#/components/schemas/ToolLabel'
+            project:
+              $ref: '#/components/schemas/ProjectLabel'
+            day:
+              type: string
+              format: date
+        tools:
+          description: Every tool label, Bash families included, largest weighted tokens first.
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolStats'
+        groups:
+          description: The `group` view; exactly one of `tool`, `project`, `sizeBand` is set per row.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [results, tokens, weightedTokens]
+            properties:
+              tool:
+                $ref: '#/components/schemas/ToolLabel'
+              project:
+                $ref: '#/components/schemas/ProjectLabel'
+              sizeBand:
+                $ref: '#/components/schemas/TokenBand'
+              results:
+                type: integer
+                format: int64
+              tokens:
+                type: integer
+                format: int64
+              weightedTokens:
+                description: >-
+                  Exact for `tool` and `project` rows. For `sizeBand` rows an estimate: each tool's weight is split
+                  by its size-band token shares. Weight-only "other" rows (overflow past 256 labels)
+                  are not apportioned.
+                type: integer
+                format: int64
+        top:
+          description: Largest single results by weighted size, at most 20.
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [result, tool, project, day, tokens, resends, weightedTokens]
+            properties:
+              result:
+                $ref: '#/components/schemas/Hash16'
+              tool:
+                $ref: '#/components/schemas/ToolLabel'
+              project:
+                $ref: '#/components/schemas/ProjectLabel'
+              day:
+                type: string
+                format: date
+              tokens:
+                type: integer
+                format: int64
+              resends:
+                type: integer
+                format: int32
+              weightedTokens:
+                type: integer
+                format: int64
+        daily:
+          description: Result tokens per day per tool over the last 14 days of the period.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, tool, tokens, results]
+            properties:
+              day:
+                type: string
+                format: date
+              tool:
+                $ref: '#/components/schemas/ToolLabel'
+              tokens:
+                type: integer
+                format: int64
+              results:
+                type: integer
+                format: int64
+        byProject:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [project, weightedTokens, tools]
+            properties:
+              project:
+                $ref: '#/components/schemas/ProjectLabel'
+              weightedTokens:
+                type: integer
+                format: int64
+              tools:
+                description: Every tool in this project with its own weighted tokens, largest first.
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [tool, weightedTokens]
+                  properties:
+                    tool:
+                      $ref: '#/components/schemas/ToolLabel'
+                    weightedTokens:
+                      type: integer
+                      format: int64
+        resultSizeBands:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenBand'
+    GuardRuleLabel:
+      description: A rule label from the guard's own rule table, as written in its per-call log; never input text.
+      type: string
+      x-cm-label: guardRule
+      minLength: 1
+      maxLength: 48
+      pattern: '^[a-z0-9][a-z0-9._-]{0,47}$'
+    GuardTool:
+      type: string
+      enum: [bash, file]
+    GuardResponse:
+      description: >-
+        Figures from the guard's per-call log (`guard.log`, contract v1). Log figures are null, or arrays empty, when
+        no log rows are stored for the period; they are never reported as zeros for a missing log.
+      type: object
+      additionalProperties: false
+      required: [period, calls, log, decisions, byTool, subAgent, callsByDay, hours, rules, lastBlock, toolErrors, install, trend]
+      properties:
+        period:
+          $ref: '#/components/schemas/Period'
+        calls:
+          $ref: '#/components/schemas/Delta'
+        log:
+          type: object
+          additionalProperties: false
+          required: [state, skipped]
+          properties:
+            state:
+              description: >-
+                starting before the first pass ends; missing when the log files are gone but stored call figures exist;
+                absent when there is no log and no stored figure; unreadable on a read or write error; disabled when
+                no collector runs. Stored figures are served in every state.
+              type: string
+              enum: [ok, starting, missing, absent, unreadable, disabled]
+            code:
+              description: Error code of the latest failed pass, set only when state is unreadable.
+              allOf:
+                - $ref: '#/components/schemas/ErrorCode'
+            lastReadAt:
+              type: string
+              format: date-time
+            skipped:
+              description: >-
+                Lines skipped since the first read (badRule lines are still counted, without the label); notRegular is
+                the number of log files the latest pass refused.
+              type: object
+              additionalProperties: false
+              required: [malformed, oversized, badVersion, badRule, notRegular]
+              properties:
+                malformed:
+                  type: integer
+                  format: int64
+                oversized:
+                  type: integer
+                  format: int64
+                badVersion:
+                  type: integer
+                  format: int64
+                badRule:
+                  type: integer
+                  format: int64
+                notRegular:
+                  type: integer
+                  format: int64
+        decisions:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [allow, ask, deny, failClosed, timeCap, subDeny]
+          properties:
+            allow:
+              type: integer
+              format: int64
+            ask:
+              type: integer
+              format: int64
+            deny:
+              type: integer
+              format: int64
+            failClosed:
+              type: integer
+              format: int64
+            timeCap:
+              type: integer
+              format: int64
+            subDeny:
+              type: integer
+              format: int64
+        byTool:
+          description: Per tool with calls in the period; percentiles come from the summed latency buckets.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [tool, calls, ask, deny, p50Ms, p95Ms, p99Ms]
+            properties:
+              tool:
+                $ref: '#/components/schemas/GuardTool'
+              calls:
+                type: integer
+                format: int64
+              ask:
+                type: integer
+                format: int64
+              deny:
+                type: integer
+                format: int64
+              p50Ms:
+                type: number
+                format: double
+                nullable: true
+              p95Ms:
+                type: number
+                format: double
+                nullable: true
+              p99Ms:
+                type: number
+                format: double
+                nullable: true
+        subAgent:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [calls, sub]
+          properties:
+            calls:
+              type: integer
+              format: int64
+            sub:
+              description: Calls that came from a sub-agent.
+              type: integer
+              format: int64
+        callsByDay:
+          description: Calls, asks and denies per local day; a day without stored rows is absent.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, calls, ask, deny]
+            properties:
+              day:
+                type: string
+                format: date
+              calls:
+                type: integer
+                format: int64
+              ask:
+                type: integer
+                format: int64
+              deny:
+                type: integer
+                format: int64
+        hours:
+          description: Today's 24 local hours; null when no rows are stored today and the log is not ok.
+          type: array
+          nullable: true
+          minItems: 24
+          maxItems: 24
+          items:
+            type: object
+            additionalProperties: false
+            required: [hour, calls, deny]
+            properties:
+              hour:
+                type: integer
+                format: int32
+                minimum: 0
+                maximum: 23
+              calls:
+                type: integer
+                format: int64
+              deny:
+                type: integer
+                format: int64
+        rules:
+          description: The 10 rule labels with the most asks or denies in the period.
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [rule, tool, decision, calls]
+            properties:
+              rule:
+                $ref: '#/components/schemas/GuardRuleLabel'
+              tool:
+                $ref: '#/components/schemas/GuardTool'
+              decision:
+                type: string
+                enum: [ask, deny]
+              calls:
+                type: integer
+                format: int64
+        lastBlock:
+          description: The latest deny ever read from the log, whatever the period.
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [at, tool]
+          properties:
+            at:
+              type: string
+              format: date-time
+            tool:
+              $ref: '#/components/schemas/GuardTool'
+            rule:
+              $ref: '#/components/schemas/GuardRuleLabel'
+        toolErrors:
+          description: Tool errors by tool and error class, most errors first.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [tool, errorClass, errors, results]
+            properties:
+              tool:
+                $ref: '#/components/schemas/ToolLabel'
+              errorClass:
+                $ref: '#/components/schemas/ErrorClass'
+              errors:
+                type: integer
+                format: int64
+              results:
+                description: All results of this tool in the period, for the rate.
+                type: integer
+                format: int64
+        install:
+          description: >-
+            The guard install in effect: the configured modes from its `guard-mode` file, and when and which build was
+            installed. Modes are `unknown` and the version fields absent when the install cannot be read.
+          type: object
+          additionalProperties: false
+          required: [source, bash, file]
+          properties:
+            source:
+              type: string
+              enum: [system, user, none]
+            bash:
+              $ref: '#/components/schemas/GuardMode'
+            file:
+              $ref: '#/components/schemas/GuardMode'
+            installedAt:
+              type: string
+              format: date-time
+            build:
+              description: First 12 hex characters of the SHA-256 of the install's manifest or binary.
+              type: string
+              x-cm-label: guardBuild
+              minLength: 12
+              maxLength: 12
+              pattern: '^[0-9a-f]{12}$'
+        trend:
+          description: >-
+            Results and results blocked by a hook per day, all tools; a day without stored rows is absent.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [day, results, blocked]
+            properties:
+              day:
+                type: string
+                format: date
+              results:
+                type: integer
+                format: int64
+              blocked:
+                type: integer
+                format: int64
+    CoreLoad:
+      type: object
+      additionalProperties: false
+      required: [core, kind, busyPct]
+      properties:
+        core:
+          description: Index in the order the OS reports cores; the page labels P1..Pn and E1..En from `kind`.
+          type: integer
+          format: int32
+        kind:
+          $ref: '#/components/schemas/CoreKind'
+        busyPct:
+          type: number
+          format: float
+    MachineSnapshot:
+      description: A part the collector could not read is null, never 0.
+      type: object
+      additionalProperties: false
+      required: [at, cpuBusyPct, cores, performanceCores, efficiencyCores, load, memory, diskIo, interfaces, volumes, apps]
+      properties:
+        at:
+          type: string
+          format: date-time
+        cpuBusyPct:
+          type: number
+          format: float
+          nullable: true
+        cores:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoreLoad'
+        performanceCores:
+          type: integer
+          format: int32
+        efficiencyCores:
+          type: integer
+          format: int32
+        load:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [one, five, fifteen]
+          properties:
+            one:
+              type: number
+              format: float
+            five:
+              type: number
+              format: float
+            fifteen:
+              type: number
+              format: float
+        memory:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [totalBytes, usedBytes, appBytes, cachedBytes, compressedBytes, swapUsedBytes, swapTotalBytes, pressure]
+          properties:
+            totalBytes:
+              type: integer
+              format: int64
+            usedBytes:
+              type: integer
+              format: int64
+            appBytes:
+              type: integer
+              format: int64
+            cachedBytes:
+              type: integer
+              format: int64
+            compressedBytes:
+              type: integer
+              format: int64
+            swapUsedBytes:
+              type: integer
+              format: int64
+            swapTotalBytes:
+              type: integer
+              format: int64
+            pressure:
+              allOf:
+                - $ref: '#/components/schemas/MemoryPressure'
+              nullable: true
+        diskIo:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [readBps, writeBps]
+          properties:
+            readBps:
+              type: integer
+              format: int64
+            writeBps:
+              type: integer
+              format: int64
+        interfaces:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [interface, rxBps, txBps, mergedNames]
+            properties:
+              interface:
+                $ref: '#/components/schemas/InterfaceLabel'
+              rxBps:
+                type: integer
+                format: int64
+              txBps:
+                type: integer
+                format: int64
+              mergedNames:
+                description: How many unsafe names the `other` row merges; 0 on other rows.
+                type: integer
+                format: int32
+                minimum: 0
+        volumes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [volume, kind, filesystem, totalBytes, freeBytes, mergedNames]
+            properties:
+              volume:
+                $ref: '#/components/schemas/VolumeLabel'
+              kind:
+                allOf:
+                  - $ref: '#/components/schemas/VolumeKind'
+                nullable: true
+              filesystem:
+                allOf:
+                  - $ref: '#/components/schemas/FilesystemLabel'
+                nullable: true
+              totalBytes:
+                type: integer
+                format: int64
+              freeBytes:
+                type: integer
+                format: int64
+              mergedNames:
+                description: How many unsafe names the `other` row merges; 0 on other rows.
+                type: integer
+                format: int32
+                minimum: 0
+        apps:
+          description: Top apps by CPU, at most 10.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [app, cpuPct, memBytes]
+            properties:
+              app:
+                $ref: '#/components/schemas/AppLabel'
+              cpuPct:
+                type: number
+                format: float
+              memBytes:
+                type: integer
+                format: int64
+    MachinePoint:
+      description: Null where no sample in the point measured the part.
+      type: object
+      additionalProperties: false
+      required: [at, cpuBusyPct, cpuBusyMaxPct, load1, memUsedBytes, swapUsedBytes, diskReadBps, diskWriteBps]
+      properties:
+        at:
+          type: string
+          format: date-time
+        cpuBusyPct:
+          type: number
+          format: float
+          nullable: true
+        cpuBusyMaxPct:
+          type: number
+          format: float
+          nullable: true
+        load1:
+          type: number
+          format: float
+          nullable: true
+        memUsedBytes:
+          type: integer
+          format: int64
+          nullable: true
+        swapUsedBytes:
+          type: integer
+          format: int64
+          nullable: true
+        diskReadBps:
+          type: integer
+          format: int64
+          nullable: true
+        diskWriteBps:
+          type: integer
+          format: int64
+          nullable: true
+    MachineResponse:
+      type: object
+      additionalProperties: false
+      required: [range, resolution, detailIntervalSeconds, coverageFrom, partial, historyPaused, now, series, coreSeries, interfaceSeries]
+      properties:
+        range:
+          $ref: '#/components/schemas/MetricsRange'
+        resolution:
+          $ref: '#/components/schemas/Resolution'
+        detailIntervalSeconds:
+          description: Spacing of `raw` points, from `collector_settings`.
+          type: integer
+          format: int32
+        coverageFrom:
+          description: Time of the first point returned; null when there is none.
+          type: string
+          format: date-time
+          nullable: true
+        partial:
+          description: True when the series start after the range start or history is paused (see Metric ranges).
+          type: boolean
+        historyPaused:
+          description: True when PostgreSQL is down; series then hold only the in-memory last hour.
+          type: boolean
+        now:
+          allOf:
+            - $ref: '#/components/schemas/MachineSnapshot'
+          nullable: true
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MachinePoint'
+        coreSeries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [core, kind, points]
+            properties:
+              core:
+                type: integer
+                format: int32
+              kind:
+                $ref: '#/components/schemas/CoreKind'
+              points:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [at, busyPct]
+                  properties:
+                    at:
+                      type: string
+                      format: date-time
+                    busyPct:
+                      type: number
+                      format: float
+        interfaceSeries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [interface, peakRxBps, peakRxAt, points]
+            properties:
+              interface:
+                $ref: '#/components/schemas/InterfaceLabel'
+              peakRxBps:
+                type: integer
+                format: int64
+              peakRxAt:
+                type: string
+                format: date-time
+                nullable: true
+              points:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [at, rxBps, txBps]
+                  properties:
+                    at:
+                      type: string
+                      format: date-time
+                    rxBps:
+                      type: integer
+                      format: int64
+                    txBps:
+                      type: integer
+                      format: int64
+    ContainerNow:
+      description: memBytes is null when stats failed; cpuPct, rxBps and txBps when rates could not be derived.
+      type: object
+      additionalProperties: false
+      required: [container, stack, state, health, cpuPct, memBytes, memLimitBytes, rxBps, txBps, restarts, startedAt,
+        mergedNames]
+      properties:
+        container:
+          $ref: '#/components/schemas/ContainerLabel'
+        stack:
+          $ref: '#/components/schemas/StackLabel'
+        state:
+          $ref: '#/components/schemas/ContainerState'
+        health:
+          $ref: '#/components/schemas/ContainerHealth'
+        cpuPct:
+          type: number
+          format: float
+          nullable: true
+        memBytes:
+          type: integer
+          format: int64
+          nullable: true
+        memLimitBytes:
+          type: integer
+          format: int64
+          nullable: true
+        rxBps:
+          type: integer
+          format: int64
+          nullable: true
+        txBps:
+          type: integer
+          format: int64
+          nullable: true
+        restarts:
+          type: integer
+          format: int32
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mergedNames:
+          description: How many unsafe names the `other` row merges; 0 on other rows.
+          type: integer
+          format: int32
+          minimum: 0
+    DockerDisk:
+      description: Docker disk use; measured less often than other figures, so `measuredAt` may lag.
+      type: object
+      additionalProperties: false
+      required: [measuredAt, stale, vmDiskBytes, usedBytes, reclaimableBytes, images, volumes, buildCache]
+      properties:
+        measuredAt:
+          type: string
+          format: date-time
+        stale:
+          description: True when the latest refresh of the disk figures failed, so these are the last ones read.
+          type: boolean
+        vmDiskBytes:
+          type: integer
+          format: int64
+          nullable: true
+        usedBytes:
+          type: integer
+          format: int64
+        reclaimableBytes:
+          type: integer
+          format: int64
+        images:
+          type: object
+          additionalProperties: false
+          required: [bytes, count, unused, reclaimableBytes]
+          properties:
+            bytes:
+              type: integer
+              format: int64
+            count:
+              type: integer
+              format: int32
+            unused:
+              type: integer
+              format: int32
+            reclaimableBytes:
+              type: integer
+              format: int64
+            largestBytes:
+              description: Size of the biggest image. Left out until the image list was read once.
+              type: integer
+              format: int64
+        volumes:
+          type: object
+          additionalProperties: false
+          required: [bytes, count, unused, reclaimableBytes]
+          properties:
+            bytes:
+              type: integer
+              format: int64
+            count:
+              type: integer
+              format: int32
+            unused:
+              type: integer
+              format: int32
+            reclaimableBytes:
+              type: integer
+              format: int64
+        buildCache:
+          type: object
+          additionalProperties: false
+          required: [bytes, reclaimableBytes]
+          properties:
+            bytes:
+              type: integer
+              format: int64
+            reclaimableBytes:
+              type: integer
+              format: int64
+    DockerSnapshot:
+      type: object
+      additionalProperties: false
+      required: [at, network, vm, counts, containers, stacks, disk]
+      properties:
+        at:
+          type: string
+          format: date-time
+        network:
+          type: string
+          enum: [stack_full]
+          description: Name of the shared Docker network the stacks panel covers.
+        vm:
+          type: object
+          additionalProperties: false
+          required: [memTotalBytes, memUsedBytes, cpuPct, swapUsedBytes, cpus]
+          properties:
+            memTotalBytes:
+              type: integer
+              format: int64
+              nullable: true
+            memUsedBytes:
+              type: integer
+              format: int64
+              nullable: true
+            cpuPct:
+              type: number
+              format: float
+              nullable: true
+            swapUsedBytes:
+              type: integer
+              format: int64
+              nullable: true
+            cpus:
+              type: integer
+              format: int32
+              nullable: true
+        counts:
+          type: object
+          additionalProperties: false
+          required: [containers, running, healthy, unhealthy, starting, noHealthcheck]
+          properties:
+            containers:
+              type: integer
+              format: int32
+            running:
+              type: integer
+              format: int32
+            healthy:
+              type: integer
+              format: int32
+            unhealthy:
+              type: integer
+              format: int32
+            starting:
+              type: integer
+              format: int32
+            noHealthcheck:
+              type: integer
+              format: int32
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContainerNow'
+        stacks:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [stack, containers, memBytes, rxBps, txBps]
+            properties:
+              stack:
+                $ref: '#/components/schemas/StackLabel'
+              containers:
+                type: integer
+                format: int32
+              memBytes:
+                type: integer
+                format: int64
+              rxBps:
+                type: integer
+                format: int64
+              txBps:
+                type: integer
+                format: int64
+        disk:
+          allOf:
+            - $ref: '#/components/schemas/DockerDisk'
+          nullable: true
+    DockerEvent:
+      type: object
+      additionalProperties: false
+      required: [at, container, kind]
+      properties:
+        at:
+          type: string
+          format: date-time
+        container:
+          $ref: '#/components/schemas/ContainerLabel'
+        kind:
+          $ref: '#/components/schemas/DockerEventKind'
+    DockerResponse:
+      type: object
+      additionalProperties: false
+      required: [range, resolution, detailIntervalSeconds, coverageFrom, partial, available, historyPaused, now, vmSeries, containerSeries, events]
+      properties:
+        range:
+          $ref: '#/components/schemas/MetricsRange'
+        resolution:
+          $ref: '#/components/schemas/Resolution'
+        detailIntervalSeconds:
+          description: Spacing of `raw` points, from `collector_settings`.
+          type: integer
+          format: int32
+        coverageFrom:
+          description: Time of the first point returned; null when there is none.
+          type: string
+          format: date-time
+          nullable: true
+        partial:
+          description: True when the series start after the range start or history is paused (see Metric ranges).
+          type: boolean
+        available:
+          description: False when the Docker socket does not answer.
+          type: boolean
+        historyPaused:
+          type: boolean
+        now:
+          allOf:
+            - $ref: '#/components/schemas/DockerSnapshot'
+          nullable: true
+        vmSeries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [at, cpuPct, memUsedBytes]
+            properties:
+              at:
+                type: string
+                format: date-time
+              cpuPct:
+                type: number
+                format: float
+                nullable: true
+              memUsedBytes:
+                type: integer
+                format: int64
+                nullable: true
+        containerSeries:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [container, stack, points]
+            properties:
+              container:
+                $ref: '#/components/schemas/ContainerLabel'
+              stack:
+                $ref: '#/components/schemas/StackLabel'
+              points:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [at, cpuPct, memBytes, rxBps, txBps]
+                  properties:
+                    at:
+                      type: string
+                      format: date-time
+                    cpuPct:
+                      type: number
+                      format: float
+                      nullable: true
+                    memBytes:
+                      type: integer
+                      format: int64
+                      nullable: true
+                    rxBps:
+                      type: integer
+                      format: int64
+                      nullable: true
+                    txBps:
+                      type: integer
+                      format: int64
+                      nullable: true
+        events:
+          description: Events in the range (at most the last 24 h for `live`), newest first, at most 200.
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/DockerEvent'
+    ActivityItem:
+      description: One status-line event; fields that do not apply to the kind are absent.
+      type: object
+      additionalProperties: false
+      required: [kind, at]
+      properties:
+        kind:
+          $ref: '#/components/schemas/ActivityKind'
+        at:
+          type: string
+          format: date-time
+        project:
+          $ref: '#/components/schemas/ProjectLabel'
+        session:
+          $ref: '#/components/schemas/SessionLabel'
+        agentType:
+          $ref: '#/components/schemas/AgentTypeLabel'
+        tokensBefore:
+          type: integer
+          format: int64
+        tokensAfter:
+          type: integer
+          format: int64
+        count:
+          type: integer
+          format: int64
+        errorCode:
+          $ref: '#/components/schemas/ErrorCode'
+    LiveStatusEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [status]
+        data:
+          $ref: '#/components/schemas/StatusResponse'
+    LiveMachineEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [machine]
+        data:
+          $ref: '#/components/schemas/MachineSnapshot'
+    LiveDockerEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [docker]
+        data:
+          $ref: '#/components/schemas/DockerSnapshot'
+    LiveSessionsEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [sessions]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiveSession'
+    LiveActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [activity]
+        data:
+          $ref: '#/components/schemas/ActivityItem'
+    LiveEvent:
+      oneOf:
+        - $ref: '#/components/schemas/LiveStatusEvent'
+        - $ref: '#/components/schemas/LiveMachineEvent'
+        - $ref: '#/components/schemas/LiveDockerEvent'
+        - $ref: '#/components/schemas/LiveSessionsEvent'
+        - $ref: '#/components/schemas/LiveActivityEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          status: '#/components/schemas/LiveStatusEvent'
+          machine: '#/components/schemas/LiveMachineEvent'
+          docker: '#/components/schemas/LiveDockerEvent'
+          sessions: '#/components/schemas/LiveSessionsEvent'
+          activity: '#/components/schemas/LiveActivityEvent'

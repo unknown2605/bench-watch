@@ -1,0 +1,17 @@
+.gallery { padding: 24px 40px 80px; display: flex; flex-direction: column; gap: 28px; align-items: flex-start; }
+.heading {
+  margin: 0; font: 600 14px var(--sh-font-oxanium); letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--sh-accent-gold);
+}
+.block { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.title { margin: 0; font: 400 12px var(--sh-font-share-tech-mono); color: var(--sh-ink-dim); }
+.frame {
+  display: flex; flex-wrap: wrap; gap: var(--gap); padding: var(--pad); width: fit-content; max-width: 100%;
+  align-items: flex-start;
+  background: #0b0f14; outline: 1px dashed color-mix(in srgb, var(--sh-ink-dim) 30%, transparent); outline-offset: -1px;
+}
+.grid { display: grid; grid-template-columns: repeat(2, 180px); }
+.bare { width: 1440px; max-width: 100%; background: #0b0f14; }
+.meter { width: 180px; }
+.uplot { width: 640px; }
+.frame > section, .frame > article { min-width: 300px; }

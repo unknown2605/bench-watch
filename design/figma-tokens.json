@@ -1,0 +1,29 @@
+{
+  "source": "Figma file 2KyCSo1yhBdozVIRpjoJsH, collection Star Holo (mode Default), exported 2026-11-08",
+  "colors": {
+    "color/surface/deep": { "value": "#03060f", "web": "--sh-surface-deep" },
+    "color/surface/base": { "value": "#050a1a", "web": "--sh-surface-base" },
+    "color/surface/navy": { "value": "#0a1430", "web": "--sh-surface-navy" },
+    "color/accent/gold": { "value": "#ffc56b", "web": "--sh-accent-gold" },
+    "color/accent/gold-muted": { "value": "#a07d4b", "web": "--sh-accent-gold-muted" },
+    "color/ink/warm": { "value": "#fff4e0", "web": "--sh-ink-warm" },
+    "color/ink/dim": { "value": "#a9b4d6", "web": "--sh-ink-dim" },
+    "color/ink/dim-muted": { "value": "#838eae", "web": "--sh-ink-dim-muted" },
+    "color/status/live": { "value": "#5fd4c4", "web": "--sh-status-live" },
+    "color/status/warn": { "value": "#ff6f59", "web": "--sh-status-warn" },
+    "color/data/session": { "value": "#c9a7ff", "web": "--sh-data-session" }
+  },
+  "textStyles": {
+    "Display": { "family": "Oxanium", "weight": 200, "size": 64, "letterSpacingPercent": 2, "case": "none" },
+    "Number": { "family": "Oxanium", "weight": 300, "size": 38, "letterSpacingPercent": 0, "case": "none" },
+    "Number S": { "family": "Oxanium", "weight": 300, "size": 18, "letterSpacingPercent": 0, "case": "none" },
+    "Heading": { "family": "Oxanium", "weight": 600, "size": 11, "letterSpacingPercent": 26, "case": "upper" },
+    "Tab": { "family": "Oxanium", "weight": 600, "size": 12, "letterSpacingPercent": 16, "case": "upper" },
+    "Body": { "family": "Oxanium", "weight": 600, "size": 13, "letterSpacingPercent": 0, "case": "none" },
+    "Label": { "family": "Oxanium", "weight": 500, "size": 10, "letterSpacingPercent": 22, "case": "upper" },
+    "Mono": { "family": "Share Tech Mono", "weight": 400, "size": 11, "letterSpacingPercent": 0, "case": "none" },
+    "Mono S": { "family": "Share Tech Mono", "weight": 400, "size": 10, "letterSpacingPercent": 0, "case": "none" }
+  },
+  "lineHeight": "auto for every style",
+  "fonts": "Oxanium and Share Tech Mono (SIL Open Font License); must be self-hosted because the page CSP allows only 'self'"
+}

@@ -1,0 +1,7 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.default { --tone: var(--sh-ink-dim); --accent: var(--sh-accent-gold); }
+.gold { --tone: var(--sh-accent-gold); --accent: var(--sh-accent-gold); }
+.warn { --tone: var(--sh-status-warn); --accent: var(--sh-status-warn); }
+.live { --tone: var(--sh-status-live); --accent: var(--sh-status-live); }
+}

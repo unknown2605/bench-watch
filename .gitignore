@@ -1,0 +1,16 @@
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+implementation_plan.md
+tickets/
+spike/
+pgpass
+.pgpass-*
+server/bin/
+web/node_modules
+web/dist
+web/test-results
+web/dist-gallery
+web/gallery-data/
+web/lint/node_modules
+web/codegen/node_modules

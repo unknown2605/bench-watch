@@ -1,0 +1,22 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.panel { position: relative; min-width: 0; min-height: 200px; color: var(--sh-ink-warm); }
+.bar {
+  position: absolute; left: 22px; top: -3px; width: 78px; height: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.header { position: absolute; left: 18px; top: 14px; display: flex; align-items: baseline; gap: 13px; }
+.index { color: color-mix(in srgb, var(--accent) 86%, transparent); }
+.title { margin: 0; color: var(--accent); }
+.body { position: relative; padding: 44px 18px 18px; }
+
+.panel { transition: filter 180ms ease-out; }
+:global([data-intro]) .panel { animation: rise 320ms ease-out both; animation-delay: var(--enter, 0ms); }
+.panel:hover, .panel:focus-within {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 40%, transparent));
+}
+.bar { transition: width 220ms ease-out; }
+.panel:hover .bar, .panel:focus-within .bar { width: 110px; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+}

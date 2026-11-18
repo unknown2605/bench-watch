@@ -1,0 +1,7 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.hidden {
+  position: fixed; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  white-space: nowrap;
+}
+}

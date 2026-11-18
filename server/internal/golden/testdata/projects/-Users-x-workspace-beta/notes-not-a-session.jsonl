@@ -1,0 +1,2 @@
+{"type":"assistant","timestamp":"2026-10-09T10:00:00.000Z","message":{"id":"msg_e1","model":"claude-3-5-sonnet-20241022","role":"assistant","content":[],"usage":{"input_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":50}}}
+{"type":"assistant","timestamp":"2026-10-09T10:01:00.000Z","message":{"id":"msg_e2","model":"claude-mystery-9","role":"assistant","content":[],"usage":{"input_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}}

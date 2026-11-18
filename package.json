@@ -1,0 +1,11 @@
+{
+  "name": "benchwatch",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local, read-only Claude Code usage dashboard built from session transcripts.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  }
+}

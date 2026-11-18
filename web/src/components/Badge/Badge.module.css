@@ -1,0 +1,10 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.badge {
+  display: inline-block; padding: 3px calc(8px - 0.22em) 3px 8px; color: var(--sh-surface-base);
+  background: var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 80%, transparent);
+}
+.live { --c: var(--sh-status-live); }
+.warn { --c: var(--sh-status-warn); }
+.gold { --c: var(--sh-accent-gold); }
+}

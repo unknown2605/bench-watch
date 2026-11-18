@@ -1,0 +1,24 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.row {
+  --dot: var(--sh-status-live);
+  display: grid; grid-template-columns: 1fr auto; column-gap: 8px; align-items: center;
+  position: relative; min-width: 0; padding-left: 16px; padding-top: 1px; height: var(--row-h); align-content: start;
+  grid-template-rows: 16px 12px 12px;
+}
+.warn { --dot: var(--sh-status-warn); }
+.dot { position: absolute; left: 0; top: 6px; color: var(--dot); }
+.name {
+  grid-column: 1 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sh-ink-warm);
+  line-height: 16px;
+}
+.meta {
+  grid-column: 1 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 5px;
+  color: var(--sh-ink-dim-muted); line-height: 12px;
+}
+.meter { grid-column: 1; grid-row: 3; margin-top: 13px; align-self: center; }
+.value {
+  grid-column: 2; grid-row: 3; margin: 11px -5px 0 0; color: var(--sh-ink-dim); line-height: 12px; white-space: nowrap;
+}
+.warn .value { color: var(--sh-status-warn); }
+}

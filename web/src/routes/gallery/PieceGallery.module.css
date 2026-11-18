@@ -1,0 +1,71 @@
+/* Panel tints from Figma variables color/panel/tint-1..4 (Foundations, VariableID 93:2-93:13). */
+.page {
+  --sh-panel-tint-1-from: #0c1736; --sh-panel-tint-1-to: #0a1430; --sh-panel-tint-1-border: #5069b0;
+  --sh-panel-tint-2-from: #061d24; --sh-panel-tint-2-to: #05171d; --sh-panel-tint-2-border: #35a3a0;
+  --sh-panel-tint-3-from: #21123a; --sh-panel-tint-3-to: #190d2a; --sh-panel-tint-3-border: #9068c0;
+  --sh-panel-tint-4-from: #251607; --sh-panel-tint-4-to: #1e1205; --sh-panel-tint-4-border: #b3813f;
+  --pad: clamp(14px, 2.78vw, 56px); --gap: clamp(20px, 2.78vw, 48px); --side: clamp(240px, 20.84vw, 340px);
+  display: grid; gap: 28px; padding: 24px var(--pad) 80px; container-type: inline-size;
+  background: var(--sh-surface-deep); min-height: calc(100vh / var(--ui-zoom, 1));
+  /* Stands in for the tabs' 2560 px content cap, which lands when the pieces are wired into the tabs. */
+  box-sizing: border-box; width: 100%; max-width: 2560px; margin-inline: auto;
+}
+.heading {
+  margin: 0; font: 600 14px var(--sh-font-oxanium); letter-spacing: 0.26em; text-transform: uppercase;
+  color: var(--sh-accent-gold);
+}
+.nav { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 400 12px var(--sh-font-share-tech-mono); }
+.nav a { color: var(--sh-ink-dim); }
+.section { display: grid; gap: 14px; }
+.title {
+  margin: 0; font: 600 14px var(--sh-font-oxanium); letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--sh-ink-warm);
+}
+.what {
+  font: 400 12px var(--sh-font-share-tech-mono); letter-spacing: 0; text-transform: none; color: var(--sh-ink-dim);
+}
+.sub {
+  margin: 6px 0 0; font: 500 11px var(--sh-font-oxanium); letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--sh-ink-dim);
+}
+/* A card is as wide as the tab's centre column at this viewport: between the side columns at 1280 px and up. */
+.cards {
+  display: grid; gap: 20px; justify-content: center;
+  grid-template-columns: min(100%, calc(100cqw - 2 * var(--side) - 2 * var(--gap)));
+}
+.card {
+  --from: var(--sh-panel-tint-1-from); --to: var(--sh-panel-tint-1-to); --border: var(--sh-panel-tint-1-border);
+  position: relative; display: grid; gap: 10px; padding: 14px 0 22px; min-width: 0;
+  background: linear-gradient(180deg, var(--from), var(--to));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+.card[data-tint='2'] {
+  --from: var(--sh-panel-tint-2-from); --to: var(--sh-panel-tint-2-to); --border: var(--sh-panel-tint-2-border);
+}
+.card[data-tint='3'] {
+  --from: var(--sh-panel-tint-3-from); --to: var(--sh-panel-tint-3-to); --border: var(--sh-panel-tint-3-border);
+}
+.card[data-tint='4'] {
+  --from: var(--sh-panel-tint-4-from); --to: var(--sh-panel-tint-4-to); --border: var(--sh-panel-tint-4-border);
+}
+.cardHead {
+  display: flex; justify-content: space-between; gap: 12px; padding: 0 18px; align-items: baseline;
+  font: 600 12px var(--sh-font-oxanium); letter-spacing: 0.26em; text-transform: uppercase; color: var(--border);
+}
+.cardLabel { color: var(--sh-accent-gold); }
+.tintName {
+  font: 400 10px var(--sh-font-share-tech-mono); letter-spacing: 0; text-transform: none;
+  color: var(--sh-ink-dim-muted);
+}
+.stage { min-width: 0; }
+.missing { margin: 0; padding: 40px 18px; font: 400 12px var(--sh-font-share-tech-mono); color: var(--sh-status-warn); }
+.replay {
+  border: 1px solid color-mix(in srgb, var(--sh-accent-gold) 50%, transparent); background: transparent;
+  color: var(--sh-accent-gold);
+  font: 500 10px var(--sh-font-oxanium); letter-spacing: 0.2em; text-transform: uppercase; padding: 4px 8px;
+  cursor: pointer;
+}
+@media (max-width: 1279.98px) {
+  .cards { grid-template-columns: 100%; }
+}

@@ -1,0 +1,28 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.chart { display: block; overflow: visible; max-width: 100%; }
+.track { fill: color-mix(in srgb, var(--sh-ink-dim) 10%, transparent); }
+.glow { filter: drop-shadow(0 0 6px currentColor); }
+.glowSoft { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sh-ink-warm) 25%, transparent)); }
+.markerGlow { fill: var(--sh-status-warn); filter: drop-shadow(0 0 8px var(--sh-status-warn)); }
+.tick { stroke: color-mix(in srgb, var(--sh-ink-dim) 60%, transparent); stroke-width: 1.5; stroke-linecap: round; }
+.hairline {
+  fill: none; stroke: color-mix(in srgb, var(--sh-ink-dim) 22%, transparent); stroke-width: 1; stroke-dasharray: 2 4;
+}
+.grid { stroke: color-mix(in srgb, var(--sh-ink-dim) 18%, transparent); stroke-width: 1; }
+.axis, .caption, .hexValue {
+  font: 400 11px var(--sh-font-share-tech-mono); fill: color-mix(in srgb, var(--sh-ink-dim) 80%, transparent);
+}
+.shieldValue { font: 300 28px var(--sh-font-oxanium); fill: var(--sh-ink-warm); }
+.hexName { font: 600 12px var(--sh-font-oxanium); fill: var(--sh-ink-warm); }
+.hexFace { fill: color-mix(in srgb, var(--sh-surface-navy) 85%, transparent); stroke: var(--c); stroke-width: 1; }
+.hex_healthy { --c: color-mix(in srgb, var(--sh-status-live) 80%, transparent); --m: var(--sh-status-live); }
+.hex_warn { --c: color-mix(in srgb, var(--sh-status-warn) 80%, transparent); --m: var(--sh-status-warn); }
+.hex_down { --c: color-mix(in srgb, var(--sh-ink-dim) 35%, transparent); --m: var(--sh-ink-dim); }
+.uplot { width: 100%; }
+.hexMark { fill: var(--m); }
+.hexMove { transition: transform 500ms cubic-bezier(0.22, 0.8, 0.3, 1); }
+
+.todayMark circle { fill: var(--sh-accent-gold); stroke: var(--sh-ink-warm); stroke-width: 1; }
+.todayMark text { font: 600 9px var(--sh-font-oxanium); letter-spacing: 0.18em; fill: var(--sh-accent-gold); }
+}

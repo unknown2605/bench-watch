@@ -1,0 +1,5 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.fill { position: absolute; inset: 0; min-width: 0; }
+.row { position: relative; width: 100%; min-width: 0; }
+}

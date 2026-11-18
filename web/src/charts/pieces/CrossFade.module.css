@@ -1,0 +1,6 @@
+.stack { position: relative; width: 100%; min-width: 0; }
+.still { position: relative; }
+.entering { position: relative; animation: fadeIn 420ms ease-out both; }
+.leaving { position: absolute; inset: 0; pointer-events: none; animation: fadeOut 420ms ease-out both; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }

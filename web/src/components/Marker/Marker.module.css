@@ -1,0 +1,4 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.marker { fill: var(--sh-status-warn); filter: drop-shadow(0 0 10px var(--sh-status-warn)); overflow: visible; }
+}

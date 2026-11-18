@@ -1,0 +1,15 @@
+.pair { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; row-gap: 3px; }
+.square { width: 7px; height: 7px; }
+.pairName, .pairValue { color: var(--sh-ink-warm); }
+.pairLine {
+  grid-column: 2 / 4; display: grid; grid-template-columns: 32px 1fr 40px; align-items: center; column-gap: 8px;
+}
+.pairLabel, .pairPct { color: var(--sh-ink-dim-muted); }
+.pairPct { text-align: right; }
+.pairMeter { height: 3px; background: color-mix(in srgb, var(--sh-ink-dim) 16%, transparent); }
+.pairMeter.tok { --c: color-mix(in srgb, var(--sh-ink-warm) 80%, var(--sh-ink-dim)); }
+.pairMeter.cost { --c: var(--sh-accent-gold); }
+.cost .pairLabel, .cost .pairPct { color: var(--sh-accent-gold); }
+
+.trackRow [role='meter'] { background: color-mix(in srgb, var(--sh-ink-dim) 55%, transparent); }
+.placeholder { height: var(--row-h); }

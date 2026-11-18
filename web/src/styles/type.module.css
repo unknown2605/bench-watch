@@ -1,0 +1,12 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.display { font: 200 64px/normal var(--sh-font-oxanium); letter-spacing: 0.02em; }
+.number { font: 300 38px/normal var(--sh-font-oxanium); }
+.numberS { font: 300 var(--sh-text-number-s-size)/normal var(--sh-font-oxanium); }
+.heading { font: 600 12px/normal var(--sh-font-oxanium); letter-spacing: 0.26em; text-transform: uppercase; }
+.tab { font: 600 13px/normal var(--sh-font-oxanium); letter-spacing: 0.16em; text-transform: uppercase; }
+.body { font: 600 14px/normal var(--sh-font-oxanium); }
+.label { font: 500 11px/normal var(--sh-font-oxanium); letter-spacing: 0.22em; text-transform: uppercase; }
+.mono { font: 400 12px/normal var(--sh-font-share-tech-mono); }
+.monoS { font: 400 11px/normal var(--sh-font-share-tech-mono); }
+}

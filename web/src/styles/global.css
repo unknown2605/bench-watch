@@ -1,0 +1,33 @@
+@import '@fontsource/oxanium/latin-200.css';
+@import '@fontsource/oxanium/latin-300.css';
+@import '@fontsource/oxanium/latin-500.css';
+@import '@fontsource/oxanium/latin-600.css';
+@import '@fontsource/share-tech-mono/latin-400.css';
+
+/* Order: reset < shared < motion < layout < unlayered tab and piece modules; each layered file repeats this line. */
+@layer reset, shared, motion, layout;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  /* Above this width the content stays centred and the background keeps the full width (user, 2026-11-12). */
+  :root { --content-max: 2560px; --row-h: 50px; }
+  html, body, #root { height: 100%; margin: 0; }
+  body {
+    background: var(--sh-surface-deep);
+    color: var(--sh-ink-warm);
+    font-family: var(--sh-font-oxanium);
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important; transition: none !important; scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Unlayered so the gold ring beats the layered `outline: none` of tabs, options and hexes. */
+:focus-visible { outline: 2px solid var(--sh-accent-gold); outline-offset: 2px; }
+
+@layer {
+  [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; }
+}

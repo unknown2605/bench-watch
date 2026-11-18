@@ -1,0 +1,26 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.cell { position: relative; width: 128px; height: 112px; text-align: center; }
+.healthy { --c: var(--sh-status-live); --fa: 0.16; --sa: 0.8; --glow: 0.4; --name: var(--sh-ink-warm); --val: 0.9; }
+.warn { --c: var(--sh-status-warn); --fa: 0.16; --sa: 0.8; --glow: 0.4; --name: var(--sh-ink-warm); --val: 0.9; }
+.down { --c: var(--sh-ink-dim); --fa: 0.03; --sa: 0.35; --glow: 0; --name: var(--sh-ink-dim); --val: 0.6; }
+.hex {
+  position: absolute; left: 0; top: 7px; overflow: visible;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--c) calc(var(--glow) * 100%), transparent));
+}
+.base { fill: color-mix(in srgb, var(--sh-surface-navy) 85%, transparent); }
+.stopTop { stop-color: var(--c); stop-opacity: var(--fa); }
+.stopBottom { stop-color: var(--c); stop-opacity: 0.02; }
+.stroke { fill: none; stroke: color-mix(in srgb, var(--c) calc(var(--sa) * 100%), transparent); stroke-width: 1; }
+.dot { position: absolute; left: 61px; top: 26px; color: var(--c); }
+.healthy .dot, .warn .dot { filter: drop-shadow(0 0 4px var(--c)); }
+.name {
+  position: absolute; left: 14px; right: 14px; top: 42px; color: var(--name); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.value {
+  position: absolute; left: 14px; right: 14px; top: 64px;
+  color: color-mix(in srgb, var(--c) calc(var(--val) * 100%), transparent);
+}
+.down .value { color: var(--sh-ink-dim-muted); }
+}

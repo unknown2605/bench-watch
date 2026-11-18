@@ -1,0 +1,23 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.planet { overflow: visible; }
+.haloIdleA { stop-color: var(--sh-data-session); stop-opacity: 0.45; }
+.haloIdleB { stop-color: var(--sh-data-session); stop-opacity: 0; }
+.haloLiveA { stop-color: var(--sh-status-live); stop-opacity: 0.45; }
+.haloLiveB { stop-color: var(--sh-status-live); stop-opacity: 0; }
+.core { stop-color: var(--sh-ink-warm); }
+.idleMid { stop-color: var(--sh-data-session); }
+.idleEdge { stop-color: var(--sh-data-session); stop-opacity: 0.55; }
+.liveMid { stop-color: var(--sh-status-live); }
+.liveEdge { stop-color: var(--sh-status-live); stop-opacity: 0.55; }
+.bodyIdle { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--sh-data-session) 90%, transparent)); }
+.bodyLive { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--sh-status-live) 90%, transparent)); }
+.ring {
+  fill: none; stroke: color-mix(in srgb, var(--sh-status-live) 90%, transparent); stroke-width: 1;
+  filter: drop-shadow(0 0 8px var(--sh-status-live));
+}
+.bracket {
+  fill: none; stroke: var(--sh-accent-gold); stroke-width: 1.5; stroke-linecap: square;
+  filter: drop-shadow(0 0 6px var(--sh-accent-gold));
+}
+}

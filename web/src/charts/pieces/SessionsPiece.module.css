@@ -1,0 +1,51 @@
+.root {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: 'left draw right';
+  align-items: start; column-gap: 14px; row-gap: 18px;
+}
+.draw { grid-area: draw; }
+.left { grid-area: left; display: grid; gap: 8px; align-self: start; min-width: 0; margin: 8px 0 0 -24px; }
+.right { grid-area: right; display: grid; gap: 8px; align-self: start; min-width: 0; margin: 8px -24px 0 0; }
+.left li, .right li { font-size: 10px; }
+.orbit { fill: none; stroke: color-mix(in srgb, var(--sh-ink-warm) 70%, transparent); stroke-width: 1; }
+.hubRing {
+  fill: color-mix(in srgb, var(--sh-surface-deep) 80%, transparent);
+  stroke: color-mix(in srgb, var(--sh-accent-gold) 45%, transparent); stroke-width: 1.2;
+}
+.hubTrack { fill: none; stroke: color-mix(in srgb, var(--sh-ink-dim) 12%, transparent); stroke-width: 4; }
+.liveArc {
+  fill: none; stroke: var(--sh-status-live); stroke-width: 4; stroke-linecap: round;
+  filter: drop-shadow(0 0 4px var(--sh-status-live));
+}
+.liveDot {
+  display: inline-block; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; vertical-align: 1px;
+  background: var(--sh-status-live); box-shadow: 0 0 6px var(--sh-status-live);
+}
+
+.dot {
+  position: absolute; display: grid; place-items: center; width: var(--s); height: var(--s); padding: 0;
+  border: 0; border-radius: 50%; background: var(--c); cursor: default;
+  font: 600 11px/1 var(--sh-font-oxanium); color: var(--sh-surface-deep);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 45%, transparent);
+  transition: filter 180ms ease-out, width 400ms ease, height 400ms ease, left 400ms ease, top 400ms ease;
+}
+:global([data-intro]) .dot {
+  animation: pop 600ms cubic-bezier(0.22, 0.8, 0.3, 1.2) both; animation-delay: calc(250ms + var(--i, 0) * 60ms);
+}
+.dot[aria-pressed] { cursor: pointer; }
+.live { box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); }
+.live::after {
+  content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 1px solid var(--c); pointer-events: none;
+  will-change: transform, opacity; animation: pulse 2.4s ease-out infinite;
+  animation-delay: calc(1200ms + var(--i, 0) * 150ms);
+}
+.idle { opacity: 0.85; }
+.ended { opacity: 0.6; box-shadow: none; }
+
+@keyframes pop { from { opacity: 0; transform: scale(0.2); } }
+@keyframes pulse { 0% { opacity: 0.8; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.8); } }
+
+@container (max-width: 599.98px) {
+  .left, .right { margin-inline: 0; }
+}
+.dot:hover, .dot[data-active]:not(:focus-visible),
+.dot[data-selected] { filter: drop-shadow(0 0 8px var(--c)) brightness(1.2); }

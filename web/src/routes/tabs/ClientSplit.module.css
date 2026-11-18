@@ -1,0 +1,10 @@
+.rows { display: flex; flex-direction: column; gap: 3px; }
+.row {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 16px 12px;
+  column-gap: 8px; align-items: center; min-width: 0; height: 36px;
+}
+.name { grid-column: 1 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sh-ink-warm); line-height: 16px; }
+.value { grid-column: 2; grid-row: 2; color: var(--sh-ink-dim); line-height: 12px; white-space: nowrap; }
+.meta { grid-column: 1; grid-row: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sh-ink-dim-muted); line-height: 12px; }
+.meter { position: absolute; left: 0; right: 0; bottom: 0; }
+.note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

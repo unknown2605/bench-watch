@@ -1,0 +1,52 @@
+@layer reset, shared, motion, layout;
+@layer layout {
+.mix { display: flex; flex-direction: column; gap: 12px; }
+.mixBar { position: relative; width: 100%; }
+.mixSeg {
+  position: absolute; top: 0; bottom: 0; box-shadow: 0 0 8px color-mix(in srgb, var(--sh-accent-gold) 25%, transparent);
+}
+.legend {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px;
+  margin: 0; padding: 0; list-style: none;
+}
+.legend li { display: flex; align-items: center; gap: 6px; color: var(--sh-ink-dim); white-space: nowrap; }
+.swatch { width: 8px; height: 8px; flex: none; }
+
+.pair { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; row-gap: 3px; }
+.square { width: 7px; height: 7px; }
+.pairName { color: var(--sh-ink-warm); }
+.pairValue { color: var(--sh-ink-warm); }
+.pairLine {
+  grid-column: 2 / 4; display: grid; grid-template-columns: 32px 1fr 36px; align-items: center; column-gap: 8px;
+}
+.pairLabel, .pairPct { color: var(--sh-ink-dim-muted); }
+.pairPct { text-align: right; }
+.pairMeter { height: 3px; }
+
+.stat { display: flex; align-items: baseline; gap: 10px; }
+.statValue { font: 200 30px/1 var(--sh-font-oxanium); }
+.statLarge { font: 200 34px/1 var(--sh-font-oxanium); }
+.statCaption { color: var(--sh-ink-dim); }
+.ink { color: var(--sh-ink-warm); }
+.live { color: var(--sh-status-live); }
+.warn { color: var(--sh-status-warn); }
+
+.heading { margin: 0 0 10px; color: var(--sh-ink-dim); }
+.divider { margin: 14px 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--sh-ink-dim) 18%, transparent); }
+
+.line {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; align-items: center; column-gap: 8px;
+  height: 44px;
+  border-bottom: 1px solid color-mix(in srgb, var(--sh-ink-dim) 14%, transparent);
+}
+.line:last-child { border-bottom: 0; }
+.lineWhen { color: var(--sh-ink-dim-muted); white-space: nowrap; text-transform: uppercase; }
+.lineName { min-width: 0; color: var(--sh-ink-warm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lineValue { color: var(--sh-accent-gold); white-space: nowrap; }
+.lineWarn .lineValue { color: var(--sh-status-warn); }
+.clipName {
+  display: block; min-width: 0; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.statBox { display: block; min-width: 0; }
+.statInner { display: inline-block; white-space: nowrap; transform-origin: left center; }
+}

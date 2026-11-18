@@ -1,0 +1,9 @@
+.root { display: grid; gap: 4px; }
+.grid { stroke: color-mix(in srgb, var(--sh-ink-warm) 55%, transparent); stroke-width: 1; }
+.base { stroke: color-mix(in srgb, var(--sh-ink-warm) 70%, transparent); stroke-width: 1; }
+.axis { font: 400 9px/1 var(--sh-font-share-tech-mono); fill: var(--sh-ink-dim); }
+.now { font: 500 10px/1 var(--sh-font-oxanium); letter-spacing: 0.16em; fill: var(--sh-status-live); }
+.nowLine { stroke: var(--sh-status-live); stroke-width: 1; filter: drop-shadow(0 0 3px var(--sh-status-live)); }
+.future { stroke: color-mix(in srgb, var(--sh-ink-dim) 60%, transparent); stroke-width: 2; }
+.mark { fill: var(--sh-status-warn); }
+.foot { margin: 0; font: 400 10px/1.2 var(--sh-font-share-tech-mono); color: var(--sh-ink-dim-muted); }

@@ -1,0 +1,5 @@
+@layer reset, shared, motion, layout;
+@layer shared {
+.limit line { stroke: var(--sh-status-warn); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
+.limit text { font: 400 10px var(--sh-font-share-tech-mono); letter-spacing: 0.08em; fill: var(--sh-status-warn); }
+}

@@ -1,0 +1,28 @@
+.list { margin-top: 4px; max-height: 102px; overflow-y: auto; scrollbar-width: thin; outline: none; }
+.row {
+  display: grid; grid-template-columns: minmax(40px, 0.7fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center; column-gap: 8px; height: 17px; padding: 0 6px; cursor: pointer; outline: none;
+  border-left: 2px solid transparent; color: var(--sh-ink-dim);
+}
+.row[data-hovered] { background: color-mix(in srgb, var(--sh-ink-warm) 6%, transparent); }
+.row[data-selected] { border-left-color: var(--sh-accent-gold); color: var(--sh-ink-warm); }
+.row[data-focus-visible] { outline: 1px solid var(--sh-accent-gold); outline-offset: -1px; }
+.name, .kind, .down, .up { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.down { color: var(--sh-status-live); text-align: right; }
+.up { color: var(--sh-accent-gold); text-align: right; }
+.spark { display: block; }
+.sparkDown { stroke: var(--sh-status-live); stroke-width: 1; }
+.sparkUp { stroke: var(--sh-accent-gold); stroke-width: 1; }
+.none { margin-top: 6px; color: var(--sh-ink-dim); }
+@media (max-width: 480px) {
+  .list { max-height: 144px; }
+  .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-rows: 12px 12px; height: 28px;
+    grid-template-areas: 'name down spark' 'kind up spark'; row-gap: 1px;
+  }
+  .name { grid-area: name; }
+  .kind { grid-area: kind; }
+  .down { grid-area: down; }
+  .up { grid-area: up; }
+  .spark { grid-area: spark; }
+}

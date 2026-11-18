@@ -1,0 +1,10 @@
+/* --ui-zoom comes from Shell (uiScale.ts); viewport units are divided by it because zoom multiplies them back. */
+.shell {
+  display: flex; flex-direction: column; zoom: var(--ui-zoom, 1);
+  min-height: calc(100vh / var(--ui-zoom, 1)); min-height: calc(100dvh / var(--ui-zoom, 1));
+  max-width: calc(100vw / var(--ui-zoom, 1));
+}
+.main { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
+
+.main { animation: tabIn 260ms ease-out both; }
+@keyframes tabIn { from { opacity: 0; } }

@@ -1,0 +1,14 @@
+.gold { --tone: var(--sh-accent-gold); }
+.session { --tone: var(--sh-data-session); }
+.gold [role='meter'], .session [role='meter'] { --c: var(--tone); }
+.netHead { justify-content: flex-end; margin-top: -26px; }
+.netPeak { margin: 2px 0 2px; text-align: right; }
+.square { width: 7px; height: 7px; }
+.disk { position: relative; padding-left: 16px; row-gap: 5px; margin-bottom: 14px; }
+.disk::before { content: ''; position: absolute; left: 0; top: 6px; width: 7px; height: 7px; background: var(--tone); }
+.disk .diskFree { color: var(--tone); }
+.diskMeter { height: 5px; margin-top: 4px; }
+.ioHead { align-items: baseline; justify-content: flex-start; flex-wrap: nowrap; gap: 8px; margin-top: 14px; }
+.ioHead > span { white-space: nowrap; }
+.ioTitle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.1em; }
+.netAxis { margin-top: 2px; }

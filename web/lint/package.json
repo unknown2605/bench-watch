@@ -1,0 +1,16 @@
+{
+  "name": "benchwatch-web-lint",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Linting tools in their own folder: typescript-eslint needs the TypeScript 6 JS API, and the app builds with TypeScript 7, which has none.",
+  "engines": { "node": ">=26" },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0"
+  }
+}
