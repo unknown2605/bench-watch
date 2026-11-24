@@ -49,7 +49,10 @@ export function withMachine(old: MachineData, snap: Machine): MachineData {
 /** What a container shows besides its numbers; a change there means Docker events the snapshot cannot carry. */
 export function dockerShape(snap: Docker | null | undefined): string {
   if (!snap) return '';
-  return snap.containers.map((c) => `${c.stack}/${c.container}:${c.state}:${c.health}:${c.restarts}`).sort().join('|');
+  return snap.containers
+    .map((c) => `${c.stack}/${c.container}:${c.state}:${c.exitCode ?? ''}:${c.health}:${c.restarts}`)
+    .sort()
+    .join('|');
 }
 
 /** Same for Docker; `snap` holds every stack, so it only goes into a response that was not filtered by stack. */

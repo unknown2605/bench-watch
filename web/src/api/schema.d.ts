@@ -1303,8 +1303,16 @@ export interface components {
             rxBps: number | null;
             /** Format: int64 */
             txBps: number | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Restarts the agent saw since it started, plus up to the hour before; a start after exit code 0 counts only when a restart event follows it.
+             */
             restarts: number;
+            /**
+             * Format: int32
+             * @description Exit code of an exited container; absent when the container is not exited, the code is unknown, or the agent is older.
+             */
+            exitCode?: number | null;
             /** Format: date-time */
             startedAt: string | null;
             /**

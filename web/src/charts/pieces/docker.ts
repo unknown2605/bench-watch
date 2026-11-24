@@ -17,7 +17,7 @@ export type Hex = {
   name: string;
   memBytes: number;
   bar: number;
-  health: 'ok' | 'none' | 'warn';
+  health: 'ok' | 'none' | 'warn' | 'finished';
   kind: 'container' | 'more' | 'other';
   count: number;
   col: number;
@@ -42,7 +42,17 @@ export const memBar = (bytes: number) => (bytes > 0 ? Math.max(0.04, logScale(by
 export function healthOf(h: string): Hex['health'] {
   if (h === 'healthy') return 'ok';
   if (h === 'none' || h === '') return 'none';
+  if (h === 'finished') return 'finished';
   return 'warn';
+}
+
+/** A folded hex warns when any container in it does, and reads finished only when all of them finished. */
+export function groupHealth(list: readonly DockerContainer[]): Hex['health'] {
+  const all = list.map((c) => healthOf(c.health));
+  if (all.length === 0) return 'none';
+  if (all.includes('warn')) return 'warn';
+  if (all.length === 1) return all[0] ?? 'none';
+  return all.every((h) => h === 'finished') ? 'finished' : 'none';
 }
 
 export function columnsFor(n: number): number {
@@ -111,7 +121,7 @@ export function dockerModel(input: DockerInput) {
         name: `+${rest.length} more`,
         memBytes: mem,
         bar: memBar(mem),
-        health: rest.some((c) => healthOf(c.health) === 'warn') ? 'warn' : 'none',
+        health: groupHealth(rest),
         kind: 'more',
         count: rest.length,
       });
@@ -129,7 +139,7 @@ export function dockerModel(input: DockerInput) {
           name: only ? only.name : `other · ${folded.length}`,
           memBytes: mem,
           bar: memBar(mem),
-          health: folded.some((c) => healthOf(c.health) === 'warn') ? 'warn' : only ? healthOf(only.health) : 'none',
+          health: groupHealth(folded),
           kind: 'other',
           count: folded.length,
         },
@@ -143,6 +153,7 @@ export function dockerModel(input: DockerInput) {
     healthy: input.containers.filter((c) => healthOf(c.health) === 'ok').length,
     noCheck: input.containers.filter((c) => healthOf(c.health) === 'none').length,
     warn: input.containers.filter((c) => healthOf(c.health) === 'warn').length,
+    finished: input.containers.filter((c) => healthOf(c.health) === 'finished').length,
     restarts: input.containers.reduce((a, c) => a + finite(c.restarts), 0),
     otherMem: folded.reduce((a, c) => a + finite(c.memBytes), 0),
     state: {

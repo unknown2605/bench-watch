@@ -90,6 +90,16 @@ describe('Guard tab log status', () => {
     await vi.waitFor(() => expect(text()).toContain('Guard report not available yet'));
   });
 
+  it('titles and labels the trend panel as blocked results when only the transcripts have data', async () => {
+    const trend = [{ day: fixtures(Date.now()).guard.period.to, results: 50, blocked: 3 }];
+    guard = { ...guard, ...NO_LOG, trend, log: { state: 'absent', skipped: SKIPPED } };
+    await mount();
+    await vi.waitFor(() => expect(text()).toContain('Blocked results per day · last 14 d'));
+    expect(text()).not.toContain('Calls per day');
+    expect(host?.innerHTML).toContain('Blocked tool results per day');
+    expect(host?.innerHTML).toContain('3 blocked of 50 results');
+  });
+
   it('keeps the figures and shows the missing status when the log files are gone', async () => {
     guard = { ...guard, log: { state: 'missing', skipped: SKIPPED } };
     await mount();

@@ -5,6 +5,7 @@ import { useMetrics } from '../../app/queries';
 import { DockerPiece } from '../../charts/pieces';
 import type { DockerInput } from '../../charts/pieces/docker';
 import { ClippedName } from './parts';
+import { healthOf, pieceHealth } from './dockerHealth';
 import { KPI, ListRow, Panel } from '../../components';
 import * as f from '../../format/format';
 import { containerLabel, num, numOrNull, rows, stackLabel } from '../../format/labels';
@@ -46,9 +47,15 @@ function ratePair(rx: number, tx: number): string {
   return unit(a) === unit(b) ? `${a.slice(0, a.indexOf(' '))} / ${b}` : `${a} / ${b}`;
 }
 
-function healthOf(c: Container): 'down' | 'warn' | 'healthy' {
-  if (c.state !== 'running') return 'down';
-  return c.health === 'unhealthy' || c.health === 'starting' || c.restarts > 0 ? 'warn' : 'healthy';
+/** Running shows its age; any other state says itself, with the exit code when one is known. */
+function uptimeText(c: Container, nowMs: number): string {
+  if (c.state === 'running') {
+    if (!c.startedAt || Number.isNaN(nowMs)) return '—';
+    return f.duration(Math.max(0, (nowMs - Date.parse(c.startedAt)) / 1000));
+  }
+  if (healthOf(c) === 'finished') return 'finished';
+  if (c.state !== 'exited') return c.state;
+  return typeof c.exitCode === 'number' ? `exited ${c.exitCode}` : 'exited';
 }
 
 /** Containers with a point at each sample time, oldest first. */
@@ -68,7 +75,9 @@ export function dockerView(d: Data, nowMs: number) {
   const byTraffic = [...containers].sort((a, b) => num(b.rxBps) + num(b.txBps) - num(a.rxBps) - num(a.txBps)).slice(0,
     NET_ROWS);
   const netMax = Math.max(0, ...byTraffic.map((c) => num(c.rxBps) + num(c.txBps)));
-  const warning = containers.filter((c) => healthOf(c) !== 'healthy').length;
+  const health = containers.map(healthOf);
+  const warning = health.filter((h) => h === 'warn' || h === 'down').length;
+  const finished = health.filter((h) => h === 'finished').length;
   const noCheck = containers.filter((c) => healthOf(c) === 'healthy' && c.health !== 'healthy').length;
   const known = disk ? num(disk.images.bytes) + num(disk.volumes.bytes) + num(disk.buildCache.bytes) : 0;
   const other = disk ? Math.max(0, num(disk.usedBytes) - known) : 0;
@@ -90,7 +99,8 @@ export function dockerView(d: Data, nowMs: number) {
     containers: {
       value: counts ? f.int(counts.containers) : '—',
       delta: counts
-        ? `${f.int(counts.healthy)} healthy · ${f.int(warning || noCheck)} ${warning ? 'warning' : 'no healthcheck'}`
+        ? `${f.int(counts.healthy)} healthy · ${f.int(warning || noCheck)} ${warning ? 'warning' : 'no check'}${
+          finished ? ` · ${f.int(finished)} finished` : ''}`
         : '',
       trend: containerTrend(d.containerSeries),
     },
@@ -117,8 +127,7 @@ export function dockerView(d: Data, nowMs: number) {
         name: containerLabel(c.container),
         stack: stackLabel(c.stack),
         memBytes: num(c.memBytes),
-        // One rule for page and piece: whatever the page counts as a warning reads "unhealthy" in the piece.
-        health: healthOf(c) !== 'healthy' ? 'unhealthy' : c.health === 'healthy' ? 'healthy' : 'none',
+        health: pieceHealth(c),
         restarts: num(c.restarts),
       })),
       stacks: rows(now?.stacks).map((s) => ({ stack: stackLabel(s.stack), memBytes: num(s.memBytes),
@@ -134,9 +143,8 @@ export function dockerView(d: Data, nowMs: number) {
       net: ratePair(num(c.rxBps), num(c.txBps)),
       health: healthOf(c),
       restarts: f.int(c.restarts),
-      warn: c.restarts > 0,
-      uptime: c.startedAt && c.state === 'running' && !Number.isNaN(nowMs)
-        ? f.duration(Math.max(0, (nowMs - Date.parse(c.startedAt)) / 1000)) : '—',
+      warn: c.restarts > 0 && healthOf(c) !== 'finished',
+      uptime: uptimeText(c, nowMs),
     })),
     disk: disk
       ? {
@@ -179,7 +187,9 @@ export function dockerView(d: Data, nowMs: number) {
       bad: EVENT_BAD.has(e.kind),
       loud: EVENT_LOUD.has(e.kind),
     })),
-    eventFoot: `${f.int(d.events.length)} events · ${f.int(restarts)} restarts`,
+    eventFootWarn: d.events.some((e) => EVENT_BAD.has(e.kind)),
+    eventFoot: `${f.int(d.events.length)} ${d.events.length === 1 ? 'event' : 'events'} · ${f.int(restarts)} ${
+      restarts === 1 ? 'restart' : 'restarts'} in range`,
     empty: now !== null && containers.length === 0,
   };
 }
@@ -294,7 +304,7 @@ export function Docker() {
             ))}
           </ul>
           {v.events.length ? null : <p className={`${type_.mono} ${tabs.none}`}>No events</p>}
-          <p className={`${type_.label} ${tabs.foot} ${own.eventFoot}`}>{v.eventFoot}</p>
+          <p className={`${type_.label} ${v.eventFootWarn ? tabs.footWarn : tabs.foot}`}>{v.eventFoot}</p>
           <p className={`${type_.label} ${own.privacy}`}>Names and numbers only · no env or paths</p>
         </Panel>
       </>

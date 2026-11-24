@@ -162,10 +162,24 @@ func (s *Server) DockerNow(stack *string) *api.DockerSnapshot {
 		}
 	}
 	out := dockerSnapshot(b, stack)
+	if out != nil {
+		setExitCodes(out.Containers, e.V.Containers)
+	}
 	if out != nil && out.Disk != nil {
 		out.Disk.Stale = slices.Contains(e.V.Stale, collect.PartDisk)
 	}
 	return out
+}
+
+// setExitCodes reads the live sample, because the stored container rows have no exit code column.
+func setExitCodes(out []api.ContainerNow, sample []collect.Container) {
+	codes := make(map[string]*int32, len(sample))
+	for _, c := range sample {
+		codes[c.Name] = c.ExitCode
+	}
+	for i := range out {
+		out[i].ExitCode = codes[out[i].Container]
+	}
 }
 
 func latestDisk(now time.Time, rings ...*ring.Ring[collect.DockerSample]) (collect.DockerSample, bool) {

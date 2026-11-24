@@ -1,6 +1,7 @@
 import type { Schemas } from '../../api';
 import type { ContextInput } from '../../charts/pieces/context';
 import type { DockerInput } from '../../charts/pieces/docker';
+import { pieceHealth } from '../tabs/dockerHealth';
 import type { FillsInput } from '../../charts/pieces/fills';
 import { GUARD_WAITING, guardPieceFields, type GuardInput } from '../../charts/pieces/guard';
 import type { MachineInput } from '../../charts/pieces/machine';
@@ -152,14 +153,17 @@ export function machineFrom(name: string): MachineInput | null {
 }
 
 export function dockerFrom(name: string): DockerInput | null {
-  const d = file<Schemas['DockerResponse']>(name);
+  return dockerInputOf(file<Schemas['DockerResponse']>(name));
+}
+
+export function dockerInputOf(d: Schemas['DockerResponse'] | null): DockerInput | null {
   if (!d?.now) return null;
   return {
     containers: rows(d.now.containers).map((c) => ({
       name: containerLabel(c.container),
       stack: stackLabel(c.stack),
       memBytes: num(c.memBytes),
-      health: String(c.health ?? 'none'),
+      health: pieceHealth(c),
       restarts: num(c.restarts),
     })),
     stacks: rows(d.now.stacks).map((s) => ({ stack: stackLabel(s.stack), memBytes: num(s.memBytes),

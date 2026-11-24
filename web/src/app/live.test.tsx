@@ -229,4 +229,34 @@ describe('useLiveStream', () => {
     const predicate = spy.mock.calls[0]?.[0]?.predicate;
     expect(predicate?.({ queryKey: ['/api/docker', { range: 'live' }] } as never)).toBe(false);
   });
+
+  it('refetches the unfiltered Live Docker query when only a container exit code changed', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('EventSource', FakeSource);
+    const client = new QueryClient();
+    const refetched: boolean[] = [];
+    vi.spyOn(client, 'invalidateQueries').mockImplementation(async (filters) => {
+      const live = client.getQueryCache().find({ queryKey: ['/api/docker', { range: 'live' }] });
+      if (live) refetched.push(filters?.predicate?.(live) ?? false);
+    });
+    const exited = (exitCode: number) => ({
+      container: 'job', stack: 'a', state: 'exited', exitCode, health: 'none', cpuPct: null, memBytes: null,
+      memLimitBytes: null, rxBps: null, txBps: null, restarts: 0, startedAt: null, mergedNames: 0,
+    });
+    const snapshot = (at: string, exitCode: number) => ({
+      at,
+      vm: { memTotalBytes: 10, memUsedBytes: 5, cpuPct: 3, swapUsedBytes: 0, cpus: 4 },
+      counts: {}, containers: [exited(exitCode)], stacks: [], disk: null,
+    });
+    const shell = (now: unknown) => ({
+      range: 'live', now, vmSeries: [], containerSeries: [], events: [], available: true,
+    });
+    client.setQueryData(['/api/docker', { range: 'live' }], shell(snapshot('2026-11-11T10:00:00Z', 0)));
+    mount(client);
+    const send = (at: string, exitCode: number) =>
+      last()?.handlers.get('docker')?.({ data: JSON.stringify({ type: 'docker', data: snapshot(at, exitCode) }) });
+    send('2026-11-11T10:00:05Z', 137);
+    vi.advanceTimersByTime(2_100);
+    expect(refetched).toContain(true);
+  });
 });

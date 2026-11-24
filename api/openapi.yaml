@@ -2442,8 +2442,18 @@ components:
           format: int64
           nullable: true
         restarts:
+          description: >-
+            Restarts the agent saw since it started, plus up to the hour before; a start after exit code 0 counts only
+            when a restart event follows it.
           type: integer
           format: int32
+        exitCode:
+          description: >-
+            Exit code of an exited container; absent when the container is not exited, the code is unknown, or the
+            agent is older.
+          type: integer
+          format: int32
+          nullable: true
         startedAt:
           type: string
           format: date-time

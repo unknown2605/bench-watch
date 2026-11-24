@@ -66,9 +66,11 @@
   .divided { margin-left: 21px; }
 }
 
-/* Nine tabs fit a 768 px window without scrolling the strip; narrower windows still scroll it. */
+/* Nine tabs fit a 768 px window with a 15 px scrollbar; narrower windows still scroll it. */
 @media (max-width: 899.98px) {
-  .tab { padding: 0 calc(7px - 0.16em) 0 7px; }
+  .tab { padding: 0 calc(5px - 0.16em) 0 5px; }
+  .divided { margin-left: 13px; }
+  .divided::before { left: -7px; }
 }
 
 @media (max-width: 599.98px) {

@@ -35,14 +35,17 @@ type eventKey struct {
 	hash uint64
 }
 
-// eventState counts restarts seen in the event stream, keyed by container ID; the list endpoint has no
-// restart count, and an inspect call would return the container's environment.
+// eventState counts restarts by container ID: the list has no count and inspect returns the environment. A start
+// after exit 0 looks like a one-shot run again, so an `always` policy restarting a clean exit is not counted.
 type eventState struct {
 	mu       sync.Mutex
 	restarts map[string]int
-	died     map[string]bool
-	started  map[string]time.Time
-	seen     map[string]tracked
+	// crashed: the last die had a non-zero or unknown exit code, so the next start is a restart.
+	crashed map[string]bool
+	// counted: the last start was counted, so the restart event that follows it adds nothing.
+	counted map[string]bool
+	started map[string]time.Time
+	seen    map[string]tracked
 	// order holds IDs by first event, stale ones until they outnumber the live ones; past maxIDs the oldest live go.
 	order    []tracked
 	seq      uint64
@@ -62,7 +65,8 @@ type tracked struct {
 }
 
 func (e *eventState) init() {
-	e.restarts, e.died, e.started = map[string]int{}, map[string]bool{}, map[string]time.Time{}
+	e.restarts, e.started = map[string]int{}, map[string]time.Time{}
+	e.crashed, e.counted = map[string]bool{}, map[string]bool{}
 	e.seen = map[string]tracked{}
 	e.recent = map[eventKey]bool{}
 }
@@ -142,7 +146,8 @@ func (e *eventState) counts() (map[string]int, map[string]time.Time) {
 
 func (e *eventState) forget(id string) {
 	delete(e.restarts, id)
-	delete(e.died, id)
+	delete(e.crashed, id)
+	delete(e.counted, id)
 	delete(e.started, id)
 	delete(e.seen, id)
 }
@@ -217,13 +222,19 @@ func (c *Collector) apply(m events.Message) (collect.DockerEvent, bool) {
 	e.track(id, at)
 	switch kind {
 	case "die":
-		e.died[id] = true
+		e.crashed[id] = m.Actor.Attributes["exitCode"] != "0"
 	case "start":
-		if e.died[id] {
+		e.counted[id] = e.crashed[id]
+		if e.crashed[id] {
 			e.restarts[id]++
-			e.died[id] = false
+			e.crashed[id] = false
 		}
 		e.started[id] = at
+	case "restart":
+		if !e.counted[id] {
+			e.restarts[id]++
+			e.counted[id] = true
+		}
 	case "destroy":
 		e.forget(id)
 	}

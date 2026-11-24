@@ -108,6 +108,7 @@ type Container struct {
 	RxBps     float64 `json:"rxBps"`
 	TxBps     float64 `json:"txBps"`
 	Restarts  int     `json:"restarts"`
+	ExitCode  *int32  `json:"exitCode,omitempty"`
 	UptimeSec int64   `json:"uptimeSec"`
 	// UptimeApprox is set when uptime comes from Docker's rounded status text, not a start event.
 	UptimeApprox bool `json:"uptimeApprox,omitempty"`

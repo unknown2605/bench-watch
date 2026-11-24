@@ -47,6 +47,7 @@
   content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 1px solid var(--sh-status-warn);
   will-change: transform, opacity; animation: pulse 1.8s ease-out infinite;
 }
+.finished .health { background: var(--sh-ink-dim); border-radius: 0; }
 .hexName {
   position: relative; max-width: 100%; overflow: hidden; text-align: center; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
@@ -75,6 +76,7 @@
 .noContainers { text-align: center; padding: 60px 0; }
 .container, .ok { --c: var(--sh-status-live); }
 .warn { --c: var(--sh-status-warn); }
+.finished { --c: var(--sh-ink-dim); }
 
 @keyframes pop { from { opacity: 0; transform: scale(0.3); } }
 @keyframes growX { from { transform: scaleX(0); } }

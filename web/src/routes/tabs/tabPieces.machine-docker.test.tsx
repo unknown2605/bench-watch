@@ -149,6 +149,82 @@ describe('Docker centre piece', () => {
     expect(running[0]).not.toBe('warn');
   });
 
+  const OK = { state: 'running', health: 'healthy', exitCode: null, restarts: 0 };
+  it.each([
+    ['exited', 0, 'finished', 'finished'], ['exited', 1, 'warn', 'exited 1'], ['exited', 137, 'warn', 'exited 137'],
+    ['exited', null, 'warn', 'exited'], ['exited', undefined, 'warn', 'exited'], ['paused', 0, 'warn', 'paused'],
+    ['dead', 0, 'warn', 'dead'], ['restarting', 0, 'warn', 'restarting'], ['created', 0, 'warn', 'created'],
+  ])('reads a container in state %s with exit code %s as %s in piece, KPI and list', (state, exitCode, want, uptime) => {
+    const d = structuredClone(data.docker);
+    if (!d.now) throw new Error('the fixture has no snapshot');
+    for (const c of d.now.containers) Object.assign(c, OK);
+    Object.assign(d.now.containers[0]!, { state, exitCode, health: 'none', restarts: 2 });
+    const v = dockerView(d, Date.now());
+    expect(v.piece.containers).toHaveLength(3);
+    expect(v.containers.value).toBe('3');
+    expect(v.piece.containers.map((c) => healthOf(c.health))).toEqual([want, 'ok', 'ok']);
+    const row = v.table.find((r) => r.full === 'php84_service_1');
+    if (want === 'finished') {
+      expect(v.containers.delta).toBe('2 healthy · 0 no check · 1 finished');
+      expect(row).toMatchObject({ health: 'finished', uptime: 'finished', warn: false });
+    } else {
+      expect(v.containers.delta).toBe('2 healthy · 1 warning');
+      expect(row).toMatchObject({ uptime, warn: true, health: 'down' });
+    }
+  });
+
+  it('reads a running healthy container with exit code 0 as healthy, and keeps — for one without a start time', () => {
+    const d = structuredClone(data.docker);
+    for (const c of d.now!.containers) Object.assign(c, OK);
+    Object.assign(d.now!.containers[0]!, { exitCode: 0, startedAt: null });
+    const v = dockerView(d, Date.now());
+    expect(v.piece.containers[0]?.health).toBe('healthy');
+    expect(v.table.find((r) => r.full === 'php84_service_1')).toMatchObject({
+      health: 'healthy', uptime: '—', warn: false });
+  });
+
+  it('warns for a running container that is unhealthy', () => {
+    const d = structuredClone(data.docker);
+    for (const c of d.now!.containers) Object.assign(c, OK);
+    d.now!.containers[0]!.health = 'unhealthy';
+    const v = dockerView(d, Date.now());
+    expect(healthOf(v.piece.containers[0]!.health)).toBe('warn');
+    expect(v.containers.delta).toContain('1 warning');
+  });
+
+  it('says the events footer counts the range, in singular for one', () => {
+    const d = structuredClone(data.docker);
+    expect(dockerView(d, Date.now()).eventFoot).toBe('1 event · 1 restart in range');
+    d.events = [];
+    expect(dockerView(d, Date.now()).eventFoot).toBe('0 events · 0 restarts in range');
+  });
+
+  it('warns in the events footer only for a restart or another bad event', async () => {
+    const d = structuredClone(data.docker);
+    const first = d.events[0]!;
+    const warns = (kinds: (typeof first.kind)[]) =>
+      dockerView({ ...d, events: kinds.map((kind) => ({ ...first, kind })) }, Date.now()).eventFootWarn;
+    expect(warns([])).toBe(false);
+    expect(warns(['create', 'start', 'stop', 'destroy', 'health_healthy'])).toBe(false);
+    for (const kind of ['restart', 'die', 'kill', 'oom', 'health_unhealthy'] as const) {
+      expect(warns(['start', kind])).toBe(true);
+    }
+    expect(warns([...Array(20).fill('start'), 'restart'])).toBe(true);
+  });
+
+  it('puts the events footer in the normal colour when nothing happened', async () => {
+    const foot = () => [...(host?.querySelectorAll('p') ?? [])].find((p) => p.textContent?.endsWith('in range'));
+    await mount('/docker');
+    await vi.waitFor(() => expect(foot()?.className).toMatch(/footWarn/));
+    act(() => root?.unmount());
+    host?.remove();
+    data.docker.events = [];
+    await mount('/docker');
+    await vi.waitFor(() => expect(foot()?.textContent).toBe('0 events · 0 restarts in range'));
+    expect(foot()?.className).toMatch(/\b_foot_/);
+    expect(foot()?.className).not.toMatch(/footWarn|eventFoot/);
+  });
+
   it('reads an image list that was never read as n/a, not as 0', () => {
     const d = structuredClone(data.docker);
     if (!d.now?.disk) throw new Error('the fixture has no disk part');

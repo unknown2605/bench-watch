@@ -8,3 +8,8 @@
 .errors { min-height: 0; }
 .errors .rows { gap: 4px; }
 .errors .foot, .decisions .foot { margin-top: 6px; }
+
+/* Stacked layout has no fixed height to share, so each panel keeps its content height. */
+@media (max-width: 1279.98px) {
+  .rules, .errors { flex: 1 0 auto; }
+}

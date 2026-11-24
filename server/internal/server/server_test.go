@@ -181,6 +181,48 @@ func TestDockerDiskSaysWhatIsUnknownOrStale(t *testing.T) {
 	}
 }
 
+// The exit code is in the live sample only: it reaches the snapshot, and an unknown one is left out, never sent as 0.
+func TestDockerNowCarriesExitCodes(t *testing.T) {
+	now := time.Now()
+	r := memoryRunner(now.Add(-2*time.Second), 2, 2*time.Second)
+	sample := dockerSample(now)
+	sample.Containers[0].ExitCode = nil
+	sample.Containers[1].ExitCode = ptr(int32(0))
+	sample.Containers = append(sample.Containers,
+		collect.Container{Name: "job", Stack: "web-services", State: "exited", ExitCode: ptr(int32(137))})
+	r.DockerLive.Push(now, sample)
+	s, h := newServer(t, nil, r)
+	s.Now = func() time.Time { return now }
+	var d api.DockerResponse
+	rec := get(h, AllowedHosts[0], "/api/docker")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &d) != nil || d.Now == nil {
+		t.Fatalf("docker live: status %d", rec.Code)
+	}
+	got := map[string]*int32{}
+	for _, c := range d.Now.Containers {
+		got[c.Container] = c.ExitCode
+	}
+	if len(got) != 3 || got["nginx"] != nil || got["mariadb"] == nil || *got["mariadb"] != 0 ||
+		got["job"] == nil || *got["job"] != 137 {
+		t.Fatalf("exit codes %v", got)
+	}
+	if n := strings.Count(rec.Body.String(), `"exitCode"`); n != 2 {
+		t.Fatalf("%d exitCode fields in the answer, want 2", n)
+	}
+	if one := s.DockerNow(ptr("web-services")); len(one.Containers) != 2 || *one.Containers[1].ExitCode != 137 {
+		t.Fatalf("one stack: %+v", one.Containers)
+	}
+}
+
+func TestSetExitCodesMatchesByName(t *testing.T) {
+	out := []api.ContainerNow{{Container: "gone", ExitCode: ptr(int32(9))}, {Container: collect.Other}}
+	setExitCodes(out, []collect.Container{{Name: "nginx", ExitCode: ptr(int32(1))},
+		{Name: collect.Other, State: "exited", ExitCode: ptr(int32(2))}})
+	if out[0].ExitCode != nil || out[1].ExitCode == nil || *out[1].ExitCode != 2 {
+		t.Fatalf("exit codes %v %v", out[0].ExitCode, out[1].ExitCode)
+	}
+}
+
 func TestMetricsFromMemory(t *testing.T) {
 	now := time.Now()
 	r := memoryRunner(now, 30, 2*time.Second)

@@ -9,6 +9,8 @@ import styles from './ListRow.module.css';
 type Props = {
   name: string;
   meta: string;
+  /** Hover text for the meta line, for when the visible meta is shortened; defaults to meta. */
+  metaTitle?: string | undefined;
   value: string;
   /** Null leaves the bar out, for a figure with no limit to fill against. */
   fill: number | null;
@@ -17,7 +19,7 @@ type Props = {
   className?: string | undefined;
 };
 
-export function ListRow({ name, meta, value, fill, tone = 'normal', meter = 'gold', className }: Props) {
+export function ListRow({ name, meta, metaTitle, value, fill, tone = 'normal', meter = 'gold', className }: Props) {
   const warn = tone === 'warn';
   const row = useRef<HTMLDivElement>(null);
   const occupant = useRef(name);
@@ -36,7 +38,7 @@ export function ListRow({ name, meta, value, fill, tone = 'normal', meter = 'gol
       <HealthMark className={styles.dot} health={warn ? 'warn' : 'healthy'} />
       {warn ? <span className={a11y.hidden}>Warning</span> : null}
       <span className={`${type_.body} ${styles.name}`} title={name}>{name}</span>
-      <span className={`${type_.mono} ${styles.meta}`} title={meta}>{meta}</span>
+      <span className={`${type_.mono} ${styles.meta}`} title={metaTitle ?? meta}>{meta}</span>
       {fill === null ? <span className={styles.meter} aria-hidden="true" /> : (
         <Meter className={styles.meter} value={fill} tone={warn ? 'warn' : meter} label={`${name} fill`} />
       )}

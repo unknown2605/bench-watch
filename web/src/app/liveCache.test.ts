@@ -78,4 +78,14 @@ describe('withDocker', () => {
     expect(dockerShape(docker('a', 'running'))).not.toBe(dockerShape(docker('a', 'exited')));
     expect(dockerShape(docker('a', 'running'))).toBe(dockerShape(docker('b', 'running')));
   });
+
+  it('tells an exit code change from a plain sample, and reads a missing code as null', () => {
+    const exited = (extra: { exitCode?: number | null } = {}) => {
+      const snap = docker('a', 'exited');
+      return dockerShape({ ...snap, containers: snap.containers.map((c) => ({ ...c, ...extra })) });
+    };
+    expect(exited({ exitCode: 1 })).not.toBe(exited({ exitCode: 0 }));
+    expect(exited({ exitCode: 0 })).not.toBe(exited());
+    expect(exited({ exitCode: null })).toBe(exited());
+  });
 });

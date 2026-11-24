@@ -1,7 +1,7 @@
 import { keyed } from '../../app/keys';
 import { int, rate, size } from '../../format/format';
 import { CountUp, Piece, useActive, vars } from './Piece';
-import { HEX_H, HEX_W, dockerModel, type DockerInput } from './docker';
+import { HEX_H, HEX_W, dockerModel, type DockerInput, type Hex } from './docker';
 import styles from './pieces.module.css';
 import own from './DockerPiece.module.css';
 
@@ -14,6 +14,13 @@ const HEX_POINTS = (() => {
   ];
   return pts.map(([x, y]) => `${x},${y}`).join(' ');
 })();
+
+const STATE_WORD: Record<Hex['health'], string> = {
+  ok: 'healthy', none: 'no healthcheck', finished: 'finished', warn: 'needs a look',
+};
+
+/** A folded hex has no word for 'none': there it only means the containers do not agree. */
+const stateWord = (h: Hex) => (h.count > 1 && h.health === 'none' ? '' : STATE_WORD[h.health]);
 
 /** Wide enough for a short stack heading such as "NO STACK · 1" above a one-hex comb. */
 const GROUP_MIN_W = 100;
@@ -40,6 +47,8 @@ export function DockerPiece({ data, label = 'Containers by stack' }: { data: Doc
               <div className={own.comb} style={{ width: g.width, height: g.height }}>
                 {keyed(g.hexes, (h) => h.key).map(([hexKey, h], hi) => {
                   const i = (offsets[gi] ?? 0) + hi;
+                  const word = stateWord(h);
+                  const mem = size(h.memBytes, 1024);
                   return (
                     <div
                       key={hexKey}
@@ -47,8 +56,9 @@ export function DockerPiece({ data, label = 'Containers by stack' }: { data: Doc
                       style={vars({ left: `${h.x}px`, top: `${h.y}px`, '--i': i })}
                       tabIndex={0}
                       role="img"
-                      aria-label={`${h.name}: ${size(h.memBytes, 1024)}${h.count > 1 ? `, ${h.count} containers` : ''}`}
-                      title={h.name}
+                      aria-label={`${h.name}: ${mem}${h.count > 1 ? `, ${h.count} containers` : ''}${
+                        word ? `, ${word}` : ''}`}
+                      title={word ? `${h.name} · ${word}` : h.name}
                       {...on(i)}
                     >
                       <svg className={own.hexShape} width={HEX_W} height={HEX_H} aria-hidden="true">
@@ -78,13 +88,15 @@ export function DockerPiece({ data, label = 'Containers by stack' }: { data: Doc
       <div className={own.summary}>
         <CountUp text={int(m.total)} className={own.total} />
         <span className={own.summaryText}>
-          containers · {int(m.healthy)} healthy · {int(m.noCheck)} without healthcheck
-          {m.warn ? ` · ${int(m.warn)} need a look` : ''} · {int(m.restarts)} restarts
+          {m.total === 1 ? 'container' : 'containers'} · {int(m.healthy)} healthy · {int(m.noCheck)} without healthcheck
+          {m.finished ? ` · ${int(m.finished)} finished` : ''}
+          {m.warn ? ` · ${int(m.warn)} ${m.warn === 1 ? 'needs' : 'need'} a look` : ''} · {int(m.restarts)}{' '}
+          {m.restarts === 1 ? 'restart' : 'restarts'} seen by this agent run
         </span>
       </div>
       <p className={styles.note}>
         Hex = container · bar = memory on a log scale, 5 MB to 1 GB · teal = healthy · hollow dot = no healthcheck ·
-        coral = needs a look
+        grey square = finished · coral = needs a look
       </p>
     </Piece>
   );

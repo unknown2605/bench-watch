@@ -110,6 +110,7 @@ describe('Fills centre piece', () => {
 
 describe('Same result re-read meter', () => {
   const meter = () => host?.querySelector('[role="meter"][aria-label*="same result re-read share"]') ?? null;
+  const label = () => line()?.querySelector('span') ?? null;
   const line = () => meter()?.parentElement ?? [...(host?.querySelectorAll('span') ?? [])]
     .find((el) => el.textContent?.startsWith('Same result re-read'))?.parentElement ?? null;
   const note = () => line()?.querySelector('[class*="meterNote"]') ?? null;
@@ -158,6 +159,7 @@ describe('Same result re-read meter', () => {
     expect(meter()?.className).not.toMatch(/warn/);
     expect(line()?.textContent).toContain('15%');
     expect(line()?.querySelector('[class*="meterWarn"]')).toBeNull();
+    expect(label()?.className).toMatch(/resentOk/);
     expect(line()?.textContent).not.toContain('not available');
   });
 
@@ -167,6 +169,8 @@ describe('Same result re-read meter', () => {
     expect(meter()?.getAttribute('aria-valuenow')).toBe('20');
     expect(meter()?.className).toMatch(/warn/);
     expect(line()?.querySelector('[class*="meterWarn"]')?.textContent).toBe('20%');
+    expect(label()?.className).toMatch(/resent/);
+    expect(label()?.className).not.toMatch(/resentOk/);
     expect(note()).toBeNull();
     expect(line()?.textContent).toMatch(/15%20%$/);
   });
@@ -177,6 +181,7 @@ describe('Same result re-read meter', () => {
     await vi.waitFor(() => expect(line()).not.toBeNull());
     expect(meter()).toBeNull();
     expect(line()?.textContent).toMatch(/15%not available for this period$/);
+    expect(label()?.className).toMatch(/resentOk/);
   });
 
   it('shows the share of the measured days and says so when the range also holds unmeasured ones', async () => {

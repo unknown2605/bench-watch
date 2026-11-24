@@ -153,6 +153,52 @@ describe('centre pieces render each edge state', () => {
     const containers = [{ name: 'db', stack: 'infra', memBytes: 9e8, health: 'healthy', restarts: 0 }];
     expect(draw(<DockerPiece data={{ containers, stacks: [] }} />)?.getAttribute('data-state')).toBe('single');
   });
+
+  it('docker words its counts in singular and plural, and names a finished container', () => {
+    const box = (name: string, health: string, restarts = 0) => ({
+      name, stack: 'infra', memBytes: 9e8, health, restarts });
+    const words = (containers: ReturnType<typeof box>[]) =>
+      draw(<DockerPiece data={{ containers, stacks: [] }} />)?.textContent;
+    const one = words([box('job', 'unhealthy', 1)]);
+    expect(one).toContain('container · 0 healthy');
+    expect(one).toContain('1 needs a look · 1 restart seen by this agent run');
+    const two = words([box('a', 'unhealthy', 1), box('b', 'unhealthy', 1), box('tls', 'finished')]);
+    expect(two).toContain('containers · 0 healthy');
+    expect(two).toContain('1 finished');
+    expect(two).toContain('2 need a look · 2 restarts seen by this agent run');
+    expect(words([box('a', 'healthy')])).toContain('0 restarts seen by this agent run');
+    expect(words([box('a', 'healthy')])).not.toMatch(/\d finished/);
+    draw(<DockerPiece data={{ containers: [box('a', 'healthy'), box('tls', 'finished')], stacks: [] }} />);
+    const labels = [...host.querySelectorAll('[aria-label]')].map((el) => el.getAttribute('aria-label') ?? '');
+    expect(labels.filter((l) => l.endsWith(', finished'))).toHaveLength(1);
+    expect(labels.find((l) => l.endsWith(', finished'))).toContain('tls');
+  });
+
+  it('docker puts every hex state in words in the title and the label, and draws finished as a square', () => {
+    const c = (name: string, health: string, stack = 'infra') => ({ name, stack, memBytes: 9e8, health, restarts: 0 });
+    draw(<DockerPiece data={{
+      containers: [c('a', 'healthy'), c('b', 'none'), c('c', 'finished'), c('d', 'unhealthy')], stacks: [],
+    }} />);
+    const hexes = [...host.querySelectorAll('[role="img"][aria-label]')];
+    const pair = (name: string) => {
+      const el = hexes.find((h) => h.getAttribute('aria-label')?.startsWith(`${name}:`));
+      return [el?.getAttribute('title'), el?.getAttribute('aria-label')?.replace(/^[^,]*/, '')];
+    };
+    expect(pair('a')).toEqual(['a · healthy', ', healthy']);
+    expect(pair('b')).toEqual(['b · no healthcheck', ', no healthcheck']);
+    expect(pair('c')).toEqual(['c · finished', ', finished']);
+    expect(pair('d')).toEqual(['d · needs a look', ', needs a look']);
+    expect(host.textContent).toContain('grey square = finished');
+  });
+
+  it('docker gives a folded hex no state word when its containers merely disagree', () => {
+    const loose = Array.from({ length: 2 }, (_, i) => ({
+      name: `x${i}`, stack: 'none', memBytes: 1, health: i ? 'finished' : 'healthy', restarts: 0 }));
+    draw(<DockerPiece data={{ containers: loose, stacks: [] }} />);
+    const el = host.querySelector('[role="img"][aria-label]');
+    expect(el?.getAttribute('aria-label')).toBe('other · 2: 2 B, 2 containers');
+    expect(el?.getAttribute('title')).toBe('other · 2');
+  });
 });
 
 describe('CrossFade', () => {

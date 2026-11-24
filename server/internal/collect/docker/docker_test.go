@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	"github.com/moby/moby/client"
 
@@ -189,8 +191,9 @@ func TestSnapshotDeriveAndEvents(t *testing.T) {
 	if sc := m["sidecar"]; sc.StackFull != "" {
 		t.Fatalf("sidecar shares a namespace and must not count for stack_full: %+v", sc)
 	}
-	if o := m["old"]; o.State != "exited" || o.CPU != 0 || o.UptimeSec != 0 || o.Missing != nil {
-		t.Fatalf("old %+v", o)
+	if o := m["old"]; o.State != "exited" || o.CPU != 0 || o.UptimeSec != 0 || o.Missing != nil ||
+		o.ExitCode == nil || *o.ExitCode != 0 || web.ExitCode != nil {
+		t.Fatalf("old %+v, web exit code %v", o, web.ExitCode)
 	}
 	o := m[collect.Other]
 	if o.Count != 2 || o.Restarts != 1 || o.MemUsed != 400_000_000 || o.RxBps != 6000 || o.State != "running" ||
@@ -432,6 +435,84 @@ func TestRestartsClearedWhenContainerIsGone(t *testing.T) {
 	c.events.prune(map[string]bool{"x": true}, t0.Add(time.Minute))
 	if r, s := c.events.counts(); len(r) != 0 || len(s) != 0 || len(c.events.seen) != 0 {
 		t.Fatalf("after prune restarts %v started %v", r, s)
+	}
+}
+
+func TestRestartsCountCrashesAndDockerRestartOnly(t *testing.T) {
+	cases := map[string]struct {
+		events []string
+		want   int
+	}{
+		"one-shot run again":                 {[]string{"start", "die:0", "start", "die:0", "start"}, 0},
+		"crash and start":                    {[]string{"start", "die:1", "start"}, 1},
+		"crash, then two starts":             {[]string{"start", "die:1", "start", "start"}, 1},
+		"kill signal and start":              {[]string{"start", "die:137", "start"}, 1},
+		"unknown code and start":             {[]string{"start", "die", "start"}, 1},
+		"crash, then a clean run":            {[]string{"die:1", "start", "die:0", "start"}, 1},
+		"docker restart, clean exit":         {[]string{"kill", "die:0", "stop", "start", "restart"}, 1},
+		"docker restart, killed":             {[]string{"kill", "die:137", "stop", "start", "restart"}, 1},
+		"docker restart twice":               {[]string{"die:0", "start", "restart", "die:0", "start", "restart"}, 2},
+		"crash, then docker restart":         {[]string{"die:1", "start", "die:0", "start", "restart"}, 2},
+		"docker restart of a stopped one":    {[]string{"die:0", "start", "die:0", "start", "restart"}, 1},
+		"restart event without its start":    {[]string{"restart"}, 1},
+		"crash not started again":            {[]string{"start", "die:1"}, 0},
+		"removed container starts from zero": {[]string{"die:1", "start", "die:1", "destroy", "start"}, 0},
+	}
+	for name, tc := range cases {
+		c := newCollector(nil, Options{})
+		t0 := time.Unix(5000, 0)
+		for i, step := range tc.events {
+			action, code, known := strings.Cut(step, ":")
+			m := msg("a", action, t0.Add(time.Duration(i)*time.Second))
+			if known {
+				m.Actor.Attributes["exitCode"] = code
+			}
+			c.apply(m)
+		}
+		if r, _ := c.events.counts(); r[hexID("a")] != tc.want {
+			t.Errorf("%s: %d restarts, want %d", name, r[hexID("a")], tc.want)
+		}
+	}
+}
+
+func TestExitCodeOfAnExitedContainer(t *testing.T) {
+	code := func(n int32) *int32 { return &n }
+	same := func(a, b *int32) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
+	for _, tc := range []struct {
+		state, status string
+		want          *int32
+	}{
+		{"exited", "Exited (0) 2 hours ago", code(0)}, {"exited", "Exited (137) About a minute ago", code(137)},
+		{"exited", "Exited (-1) 5 seconds ago", code(-1)}, {"exited", "Exited (99999999999) 5 seconds ago", nil},
+		{"exited", "", nil}, {"exited", "Exited () 5 seconds ago", nil}, {"exited", "Was Exited (0)", nil},
+		{"restarting", "Restarting (0) 5 seconds ago", nil}, {"running", "Up 2 hours", nil}, {"dead", "Dead", nil},
+		{"running", "Exited (0) 2 hours ago", nil},
+	} {
+		r := fromSummary(&container.Summary{State: container.ContainerState(tc.state), Status: tc.status})
+		if !same(r.exitCode, tc.want) {
+			t.Errorf("%s %q: exit code %v, want %v", tc.state, tc.status, r.exitCode, tc.want)
+		}
+	}
+	c := newCollector(nil, Options{})
+	exited := func(id, name string, n *int32) raw { return raw{id: id, name: name, state: "exited", exitCode: n} }
+	for name, tc := range map[string]struct {
+		codes []*int32
+		want  *int32
+	}{
+		"all equal": {[]*int32{code(0), code(0)}, code(0)}, "different": {[]*int32{code(0), code(1), code(0)}, nil},
+		"unknown last": {[]*int32{code(0), nil}, nil}, "unknown first": {[]*int32{nil, code(0), code(0)}, nil},
+	} {
+		s := Snapshot{At: time.Unix(1000, 0), infoKnown: true, containers: []raw{exited("id-job", "job", code(0))}}
+		for i, n := range tc.codes {
+			s.containers = append(s.containers, exited(fmt.Sprintf("id-%d", i), dockertest.UnsafeNames[i%2], n))
+		}
+		m := byName(c.Derive(s, s))
+		if job := m["job"]; !same(job.ExitCode, code(0)) {
+			t.Errorf("%s: job %+v", name, job)
+		}
+		if o := m[collect.Other]; o.Count != len(tc.codes) || !same(o.ExitCode, tc.want) {
+			t.Errorf("%s: merged %+v, want exit code %v", name, o, tc.want)
+		}
 	}
 }
 

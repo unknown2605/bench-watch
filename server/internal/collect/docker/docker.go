@@ -107,6 +107,7 @@ type raw struct {
 	stack     string
 	state     string
 	health    string
+	exitCode  *int32
 	statusUp  time.Duration
 	upKnown   bool
 	stackFull string
@@ -394,6 +395,9 @@ func fromSummary(s *container.Summary) raw {
 		r.health = strings.TrimPrefix(m[1], "health: ")
 	}
 	r.statusUp, r.upKnown = parseUp(s.Status)
+	if r.state == string(container.StateExited) {
+		r.exitCode = parseExit(s.Status)
+	}
 	// A container in another's network namespace reports that container's traffic, so it is not attributed twice.
 	if s.NetworkSettings != nil && !strings.HasPrefix(s.HostConfig.NetworkMode, "container:") {
 		if _, ok := s.NetworkSettings.Networks[StackNetwork]; ok {
@@ -547,6 +551,7 @@ func (c *Collector) Derive(prev, cur Snapshot) collect.DockerSample {
 		ct := collect.Container{
 			Name: c.opt.Gate.Name(r.name), State: r.state, Health: r.health,
 			MemUsed: r.memUsed, MemLimit: r.memLimit, Restarts: restarts[r.id], StackFull: r.stackFull,
+			ExitCode: r.exitCode,
 		}
 		if r.stack != "" {
 			ct.Stack = c.opt.Gate.Name(r.stack)
@@ -649,9 +654,14 @@ func (c *Collector) rates(ct *collect.Container, p, r *raw, dt float64) bool {
 
 func mergeOther(o *collect.Container, ct collect.Container) {
 	if o.Count == 0 {
-		o.State = ct.State
-	} else if o.State != ct.State {
-		o.State = collect.Other
+		o.State, o.ExitCode = ct.State, ct.ExitCode
+	} else {
+		if o.State != ct.State {
+			o.State = collect.Other
+		}
+		if o.ExitCode == nil || ct.ExitCode == nil || *o.ExitCode != *ct.ExitCode {
+			o.ExitCode = nil
+		}
 	}
 	o.CPU += ct.CPU
 	o.MemUsed += ct.MemUsed
@@ -693,6 +703,22 @@ func parseUp(status string) (time.Duration, bool) {
 		"week": 7 * 24 * time.Hour, "month": 30 * 24 * time.Hour, "year": 365 * 24 * time.Hour,
 	}[m[3]]
 	return time.Duration(n) * unit, true
+}
+
+var exitRe = regexp.MustCompile(`^Exited \((-?\d+)\)`)
+
+// parseExit reads the exit code of "Exited (137) 2 hours ago"; nil when the status does not name one.
+func parseExit(status string) *int32 {
+	m := exitRe.FindStringSubmatch(status)
+	if m == nil {
+		return nil
+	}
+	n, err := strconv.ParseInt(m[1], 10, 32)
+	if err != nil {
+		return nil
+	}
+	code := int32(n)
+	return &code
 }
 
 func round1(v float64) float64 {

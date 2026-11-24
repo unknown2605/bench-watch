@@ -37,7 +37,6 @@
 .eventBad .eventMark { color: var(--sh-status-warn); }
 .eventName { min-width: 0; color: var(--sh-ink-warm); }
 .eventEmpty { color: var(--sh-ink-dim-muted); }
-.eventFoot { color: var(--sh-status-warn); }
 .privacy { margin: 8px 0 0; color: var(--sh-ink-dim); }
 
 .table th { text-transform: uppercase; letter-spacing: 0.16em; font-family: var(--sh-font-oxanium); }
@@ -46,7 +45,9 @@
   background: var(--sh-status-live);
 }
 .mark.warn, .mark.down { background: var(--sh-status-warn); }
+.mark.finished { background: var(--sh-ink-dim); }
 .table td:first-child > span:last-child { display: inline-block; vertical-align: middle; }
+.table td:last-child { min-width: 11ch; }
 .table td.stack { color: var(--sh-ink-dim); }
 .table td.memory { color: var(--sh-accent-gold); }
 .table td.net { color: var(--sh-status-live); }

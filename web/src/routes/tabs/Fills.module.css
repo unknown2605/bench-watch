@@ -3,6 +3,7 @@
 dl.statsAbove dt { order: 0; color: var(--sh-ink-dim); letter-spacing: 0.14em; text-transform: uppercase; }
 dl.statsAbove dd.cost { color: var(--sh-accent-gold); }
 .resent { color: var(--sh-status-warn); }
+.resentOk { color: var(--sh-ink-dim); }
 
 .table th { letter-spacing: 0.12em; text-transform: uppercase; }
 .table tr[data-selected] td { background: color-mix(in srgb, var(--sh-accent-gold) 8%, transparent); }

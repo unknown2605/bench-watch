@@ -56,6 +56,8 @@ function driftLog(counts: Schemas['ScanStatus']['byClient'] | undefined, full: b
   });
 }
 
+const driftRest = (n: number) => `${n} ${n === 1 ? 'CLIENT' : 'CLIENTS'} WITH DRIFT`;
+
 /** The header and the status line, from /api/status; `now` moves the "3 s ago" text between answers. */
 export function shellStatus(
   d: Schemas['StatusResponse'],
@@ -82,7 +84,7 @@ export function shellStatus(
   let log = entries(drifting);
   for (let shown = drifting.length - 1; log.join(LOG_SEPARATOR).length > LOG_FIT_CHARS && shown >= 0; shown -= 1) {
     const rest = drifting.length - shown;
-    log = entries([...drifting.slice(0, shown), shown > 0 ? `+${rest} MORE` : `${rest} CLIENTS WITH DRIFT`]);
+    log = entries([...drifting.slice(0, shown), shown > 0 ? `+${rest} MORE` : driftRest(rest)]);
   }
   return {
     updated: `${since(last, now) || '0 s'} ago`,

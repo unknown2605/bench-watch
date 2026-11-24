@@ -22,14 +22,86 @@ describe('guardView', () => {
     });
     const v = guardView(d, NOW);
     expect(v.errors.map((e) => e.name)).toEqual(['Bash', 'Read']);
-    expect(v.errors[0]).toMatchObject({ meta: 'blocked by hook · 8 of 50', top: true });
+    expect(v.errors[0]).toMatchObject({
+      meta: 'blocked by hook: 5 of 8 errors', metaTitle: 'blocked by hook: 5 of 8 errors · 50 results', top: true,
+    });
   });
 
   it('counts a tool results once when it has several error classes', () => {
     const d = withData({
       toolErrors: [err('Bash: git', 'other', 2, 40), err('Bash: git', 'blocked by hook', 1, 40)],
     });
-    expect(guardView(d, NOW).errors[0]?.meta).toBe('other · 3 of 40');
+    const row = guardView(d, NOW).errors[0];
+    expect(row?.meta).toBe('other: 2 of 3 errors');
+    expect(row?.metaTitle).toBe('other: 2 of 3 errors · 40 results');
+  });
+
+  it('names a single error class once, without repeating its count, and uses the singular for 1', () => {
+    const row = (errors: number, results: number) =>
+      guardView(withData({ toolErrors: [err('Grep', 'other', errors, results)] }), NOW).errors[0];
+    expect(row(4, 40)).toMatchObject({ meta: 'other: all 4 errors', metaTitle: 'other: all 4 errors · 40 results' });
+    expect(row(1, 1)).toMatchObject({ meta: 'other: 1 error', metaTitle: 'other: 1 error · 1 result' });
+  });
+
+  it('writes both counts in full when a class is a part of the errors but both round to the same text', () => {
+    const d = withData({
+      toolErrors: [err('Bash: a', 'other', 1_000, 5_000), err('Bash: b', 'blocked by hook', 40, 5_000)],
+    });
+    expect(guardView(d, NOW).errors[0]?.meta).toBe('other: 1,000 of 1,040 errors');
+    const close = withData({ toolErrors: [err('Bash: a', 'other', 1_200, 9_000), err('Bash: b', 'x', 1, 9_000)] });
+    expect(guardView(close, NOW).errors[0]?.meta).toBe('other: 1,200 of 1,201 errors');
+  });
+
+  it('lets the class seen first win when two classes have equal counts', () => {
+    const order = (a: string, b: string) =>
+      guardView(withData({ toolErrors: [err('Bash: a', a, 2, 10), err('Bash: b', b, 2, 10)] }), NOW).errors[0]?.meta;
+    expect(order('zeta', 'alpha')).toBe('zeta: 2 of 4 errors');
+    expect(order('alpha', 'zeta')).toBe('alpha: 2 of 4 errors');
+  });
+
+  it('takes the fallback bars from the trend response and the blocked KPI from the period response', () => {
+    const period = withData({
+      decisions: null, callsByDay: [], period: { ...base.period, days: 1 },
+      trend: [{ day: '2026-11-07', results: 40, blocked: 4 }],
+    });
+    const wide = withData({
+      decisions: null, callsByDay: [], period: { ...base.period, from: '2026-10-25', to: '2026-11-07', days: 14 },
+      trend: [{ day: '2026-11-03', results: 100, blocked: 9 }],
+    });
+    const v = guardView(period, NOW, wide);
+    expect(v.bars.find((b) => b.key === '2026-11-03')).toMatchObject({ value: 9, display: '9 blocked of 100 results' });
+    expect(v.bars.find((b) => b.key === '2026-11-07')?.absent).toBe(true);
+    expect(v.blockedKpi).toEqual({ label: 'Blocked results · today', value: '4', delta: '4 of 40 results · 10.0%' });
+  });
+
+  it('draws blocked results per day from the transcripts when there is no guard log', () => {
+    const trend = [{ day: '2026-11-05', results: 200, blocked: 0 }, { day: '2026-11-07', results: 300, blocked: 6 }];
+    const v = guardView(withData({ decisions: null, callsByDay: [], trend }), NOW);
+    expect(v.trendNote).toBeNull();
+    expect(v.barTitle).toBe('Blocked results per day · last 14 d');
+    expect(v.barLabel).toContain('Blocked tool results per day');
+    const bar = (day: string) => v.bars.find((b) => b.key === day);
+    expect(bar('2026-11-07')).toMatchObject({ value: 6, display: '6 blocked of 300 results' });
+    expect(bar('2026-11-05')).toMatchObject({ value: 0, display: '0 blocked of 200 results' });
+    expect(bar('2026-11-05')?.absent).toBeFalsy();
+    expect(bar('2026-11-06')).toMatchObject({ value: 0, display: 'no data', absent: true });
+  });
+
+  it('keeps the calls bars when the log has rows, whatever the transcripts hold', () => {
+    const trend = [{ day: '2026-11-07', results: 300, blocked: 250 }];
+    for (const decisions of [base.decisions, null]) {
+      const v = guardView(withData({ trend, decisions }), NOW);
+      expect(v.barTitle).toBe('Calls per day · last 14 d');
+      expect(v.barLabel).toBe('Guard calls per day, denied calls in coral; days without log rows have no data');
+      expect(v.bars.find((b) => b.key === '2026-11-07')).toMatchObject({ value: 140, cap: 0 });
+    }
+  });
+
+  it('keeps the note, not transcript bars, when the log has decisions but no day rows', () => {
+    const v = guardView(withData({ callsByDay: [] }), NOW);
+    expect(v.barTitle).toBe('Calls per day · last 14 d');
+    expect(v.bars.every((b) => b.absent)).toBe(true);
+    expect(v.trendNote).toBe('no data');
   });
 
   it('shows an absent trend day as no data, not as a measured zero', () => {
@@ -182,7 +254,10 @@ describe('guardView', () => {
     const v = guardView(withData(empty), NOW);
     expect(v.note).toBe('The guard writes no per-call log yet');
     expect(v.calls).toEqual({ value: '—', delta: v.note });
-    expect(v.trendNote).toBe(v.note);
+    const neither = guardView(withData({ ...empty, trend: [] }), NOW);
+    expect(neither.trendNote).toBe(v.note);
+    expect(neither.barTitle).toBe('Calls per day · last 14 d');
+    expect(neither.bars.every((b) => b.absent)).toBe(true);
     expect(v.decisions).toEqual([]);
     expect(v.speed).toEqual([]);
     expect(v.rules).toEqual([]);
@@ -193,7 +268,7 @@ describe('guardView', () => {
   it('says the log could not be read when it is unreadable', () => {
     const v = guardView(withData({
       log: { state: 'unreadable', skipped: base.log.skipped }, decisions: null, byTool: [], callsByDay: [], hours: null,
-      rules: [],
+      rules: [], trend: [],
     }), NOW);
     expect(v.note).toBe('The guard log could not be read');
     expect(v.trendNote).toBe(v.note);

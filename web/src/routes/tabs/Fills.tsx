@@ -204,6 +204,7 @@ export function Fills() {
   const pick = (key: string) => setPicked(key === tool ? null : key);
   const period = q.data ? { from: q.data.period.from, to: q.data.period.to, partial: q.data.period.partial } : null;
   const sel = v?.selected ?? null;
+  const over = sel !== null && sel.repeat !== null && sel.repeat > target;
   const slots = v && {
     left: (
       <>
@@ -296,7 +297,7 @@ export function Fills() {
               {v.isTool ? (
                 <>
                   <div className={styles.meterLine}>
-                    <span className={`${type_.monoS} ${own.resent}`}>
+                    <span className={`${type_.monoS} ${over ? own.resent : own.resentOk}`}>
                       Same result re-read · target {f.pct(target)}
                     </span>
                     {sel.repeat === null ? (
@@ -305,11 +306,11 @@ export function Fills() {
                       <>
                         <Meter
                           value={sel.repeat}
-                          tone={sel.repeat > target ? 'warn' : 'gold'}
+                          tone={over ? 'warn' : 'gold'}
                           label={`${sel.name} same result re-read share${sel.repeatNote ? `, ${sel.repeatNote}` : ''}`}
                         />
                         <span
-                          className={`${type_.monoS} ${sel.repeat > target ? styles.meterWarn : styles.meterValue}`}
+                          className={`${type_.monoS} ${over ? styles.meterWarn : styles.meterValue}`}
                         >
                           {f.pct(sel.repeat)}
                         </span>

@@ -83,6 +83,18 @@ describe('shellStatus', () => {
     expect(s.logSpoken.filter((l) => /SKIPPED/.test(l))).toHaveLength(6);
   });
 
+  it.each([[1, '1 CLIENT WITH DRIFT'], [2, '2 CLIENTS WITH DRIFT']])(
+    'words the collapsed drift of %i client(s) as "%s"', (n, want) => {
+      const compactions = Array.from({ length: 2 }, (_, i) => ({
+        at: new Date(2026, 10, 10, 11, i).toISOString(), project: 'a-project-with-quite-a-long-name',
+        tokensBefore: 90_000, tokensAfter: 10_000,
+      })) as unknown as Schemas['Compaction'][];
+      const byClient = ['claude-code', 'copilot-cli'].slice(0, n)
+        .map((client) => ({ client, skippedLines: 123_456_789_012_345, unreadable: 123_456_789_012_345 }));
+      const d = { ...base, scan: { ...base.scan, byClient } } as Schemas['StatusResponse'];
+      expect(shellStatus(d, new Date(2026, 10, 10, 12, 0), compactions).log).toContain(want);
+    });
+
   it('shows the fallback name for a project the label gate rejects', () => {
     const odd = {
       at: new Date(2026, 10, 10, 11, 0).toISOString(),

@@ -43,9 +43,20 @@ export function guardView(d: Data, now: Date, trend: Data = d) {
   const when = days === 1 ? 'today' : `${days} d`;
   const trendDays = daysBetween(trend.period.from, trend.period.to);
   const trendByDay = new Map(list(trend.callsByDay).map((r) => [r.day, r]));
+  // Without a guard log the transcripts still hold the blocked results per day.
+  const blockedByDay = new Map(
+    trend.decisions === null && !trendByDay.size ? list(trend.trend).map((r) => [r.day, r]) : [],
+  );
   const bars: BarDatum[] = trendDays.map((day) => {
-    const row = trendByDay.get(day);
     const label = f.dayLabel(day);
+    const results = blockedByDay.get(day);
+    if (results) {
+      return {
+        key: day, label, value: num(results.blocked),
+        display: `${f.int(num(results.blocked))} blocked of ${f.int(num(results.results))} results`,
+      };
+    }
+    const row = trendByDay.get(day);
     return row
       ? {
         key: day, label, value: num(row.calls), cap: num(row.deny),
@@ -55,7 +66,7 @@ export function guardView(d: Data, now: Date, trend: Data = d) {
   });
   const hasLog = d.decisions !== null;
   const note = logNote(d.log?.state);
-  const trendNote = list(trend.callsByDay).length ? null : logNote(trend.log?.state) ?? NO_DATA;
+  const trendNote = trendByDay.size || blockedByDay.size ? null : logNote(trend.log?.state) ?? NO_DATA;
   const dayRows = list(d.trend);
   const toolErrors = list(d.toolErrors);
   const results = dayRows.reduce((s, r) => s + num(r.results), 0);
@@ -80,7 +91,8 @@ export function guardView(d: Data, now: Date, trend: Data = d) {
     .map(([name, r]) => {
       const top = [...r.classes.entries()].sort((a, b) => b[1] - a[1])[0];
       const kind = top?.[0] ?? 'other';
-      return { name, errors: r.errors, results: r.results, kind, rate: share(r.errors, r.results) };
+      const kindErrors = top?.[1] ?? 0;
+      return { name, errors: r.errors, results: r.results, kind, kindErrors, rate: share(r.errors, r.results) };
     })
     .filter((r) => r.errors > 0)
     .sort((a, b) => b.errors - a.errors)
@@ -138,18 +150,28 @@ export function guardView(d: Data, now: Date, trend: Data = d) {
     })),
     piece: guardPieceFields(d, now) satisfies GuardInput,
     bars,
+    barTitle: blockedByDay.size ? 'Blocked results per day · last 14 d' : 'Calls per day · last 14 d',
+    barLabel: blockedByDay.size
+      ? 'Blocked tool results per day, from the transcripts; days without transcript rows have no data'
+      : 'Guard calls per day, denied calls in coral; days without log rows have no data',
     barAxis: {
       start: f.dayLabel(trend.period.from),
       end: trend.period.to === f.localDay(now) ? 'Today' : f.dayLabel(trend.period.to),
       now: trend.period.to === f.localDay(now),
     },
-    errors: errors.map((e) => ({
-      name: e.name,
-      meta: `${e.kind} · ${f.tokens(e.errors)} of ${f.tokens(e.results)}`,
-      value: f.pct1(e.rate),
-      fill: fraction(e.rate, errorMax),
-      top: errorMax > 0 && e.rate === errorMax,
-    })),
+    errors: errors.map((e) => {
+      const count = e.kindErrors < e.errors && f.tokens(e.kindErrors) === f.tokens(e.errors) ? f.int : f.tokens;
+      const meta = `${e.kind}: ${e.kindErrors < e.errors ? `${count(e.kindErrors)} of ` : e.errors > 1 ? 'all ' : ''}${
+        count(e.errors)} ${e.errors === 1 ? 'error' : 'errors'}`;
+      return {
+        name: e.name,
+        meta,
+        metaTitle: `${meta} · ${f.tokens(e.results)} ${e.results === 1 ? 'result' : 'results'}`,
+        value: f.pct1(e.rate),
+        fill: fraction(e.rate, errorMax),
+        top: errorMax > 0 && e.rate === errorMax,
+      };
+    }),
   };
 }
 
@@ -188,7 +210,7 @@ export function Guard() {
       </TabPiece>
     ),
     bottom: (
-      <Panel index="03" title="Calls per day · last 14 d" className={styles.bottomPanel}>
+      <Panel index="03" title={v.barTitle} className={styles.bottomPanel}>
         {v.trendNote ? <p className={`${type_.mono} ${tabs.none}`}>{v.trendNote}</p> : (
           <Fit fallback={[644, 76]} height={76}>
             {(w) => (
@@ -199,7 +221,7 @@ export function Guard() {
                 tone="gold"
                 today
                 axis={v.barAxis}
-                label="Guard calls per day, denied calls in coral; days without log rows have no data"
+                label={v.barLabel}
               />
             )}
           </Fit>
@@ -244,6 +266,7 @@ export function Guard() {
                 key={key}
                 name={e.name}
                 meta={e.meta}
+                metaTitle={e.metaTitle}
                 value={e.value}
                 fill={e.fill}
                 tone={e.top ? 'warn' : 'normal'}
