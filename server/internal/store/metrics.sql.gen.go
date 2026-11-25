@@ -831,19 +831,22 @@ func (q *Queries) LatestMachineVolumes(ctx context.Context, since pgtype.Timesta
 const listStacks = `-- name: ListStacks :many
 SELECT stack FROM docker_container_rollup_1h WHERE bucket >= $1::timestamptz
 UNION
-SELECT stack FROM docker_container_rollup_1m
-WHERE bucket >= greatest($1::timestamptz,
-    coalesce((SELECT max(bucket) FROM docker_container_rollup_1h), '-infinity'::timestamptz))
+SELECT stack FROM docker_container_rollup_1m WHERE bucket >= $2::timestamptz
 UNION
-SELECT stack FROM docker_container_samples
-WHERE at >= greatest($1::timestamptz,
-    coalesce((SELECT max(bucket) FROM docker_container_rollup_1m), '-infinity'::timestamptz))
+SELECT stack FROM docker_container_samples WHERE at >= $3::timestamptz
 ORDER BY 1
 `
 
-// Each tier covers only what the coarser one has not rolled up yet, so long ranges never scan raw rows.
-func (q *Queries) ListStacks(ctx context.Context, since pgtype.Timestamptz) ([]string, error) {
-	rows, err := q.db.Query(ctx, listStacks, since)
+type ListStacksParams struct {
+	HourSince   pgtype.Timestamptz
+	MinuteSince pgtype.Timestamptz
+	RawSince    pgtype.Timestamptz
+}
+
+// Each tier covers only what the coarser one has not rolled up yet, so long ranges never scan raw rows. The caller
+// passes the cutoffs as values because the planner cannot estimate a subquery inside greatest().
+func (q *Queries) ListStacks(ctx context.Context, arg ListStacksParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listStacks, arg.HourSince, arg.MinuteSince, arg.RawSince)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,4 +1083,23 @@ func (q *Queries) MachineSeriesRaw(ctx context.Context, arg MachineSeriesRawPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const stackCutoffs = `-- name: StackCutoffs :one
+SELECT
+    (SELECT max(bucket) FROM docker_container_rollup_1h)::timestamptz AS hour_max,
+    (SELECT max(bucket) FROM docker_container_rollup_1m)::timestamptz AS minute_max
+`
+
+type StackCutoffsRow struct {
+	HourMax   pgtype.Timestamptz
+	MinuteMax pgtype.Timestamptz
+}
+
+// The newest bucket of each rollup tier, NULL while a tier is empty; read before ListStacks.
+func (q *Queries) StackCutoffs(ctx context.Context) (StackCutoffsRow, error) {
+	row := q.db.QueryRow(ctx, stackCutoffs)
+	var i StackCutoffsRow
+	err := row.Scan(&i.HourMax, &i.MinuteMax)
+	return i, err
 }

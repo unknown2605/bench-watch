@@ -141,15 +141,18 @@ WHERE at >= @since::timestamptz AND at < @until::timestamptz
 ORDER BY at DESC, container, kind
 LIMIT @max_rows::integer;
 
+-- name: StackCutoffs :one
+-- The newest bucket of each rollup tier, NULL while a tier is empty; read before ListStacks.
+SELECT
+    (SELECT max(bucket) FROM docker_container_rollup_1h)::timestamptz AS hour_max,
+    (SELECT max(bucket) FROM docker_container_rollup_1m)::timestamptz AS minute_max;
+
 -- name: ListStacks :many
--- Each tier covers only what the coarser one has not rolled up yet, so long ranges never scan raw rows.
-SELECT stack FROM docker_container_rollup_1h WHERE bucket >= @since::timestamptz
+-- Each tier covers only what the coarser one has not rolled up yet, so long ranges never scan raw rows. The caller
+-- passes the cutoffs as values because the planner cannot estimate a subquery inside greatest().
+SELECT stack FROM docker_container_rollup_1h WHERE bucket >= @hour_since::timestamptz
 UNION
-SELECT stack FROM docker_container_rollup_1m
-WHERE bucket >= greatest(@since::timestamptz,
-    coalesce((SELECT max(bucket) FROM docker_container_rollup_1h), '-infinity'::timestamptz))
+SELECT stack FROM docker_container_rollup_1m WHERE bucket >= @minute_since::timestamptz
 UNION
-SELECT stack FROM docker_container_samples
-WHERE at >= greatest(@since::timestamptz,
-    coalesce((SELECT max(bucket) FROM docker_container_rollup_1m), '-infinity'::timestamptz))
+SELECT stack FROM docker_container_samples WHERE at >= @raw_since::timestamptz
 ORDER BY 1;

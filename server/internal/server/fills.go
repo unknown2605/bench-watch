@@ -27,6 +27,7 @@ func (s *Server) GetFills(ctx context.Context, r api.GetFillsRequestObject) (api
 	case ok && st == 422:
 		return api.GetFills422JSONResponse{NotForClientJSONResponse: api.NotForClientJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/fills", err)
 		return api.GetFills503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -283,6 +284,7 @@ func (s *Server) GetGuard(ctx context.Context, r api.GetGuardRequestObject) (api
 	case ok && st == 422:
 		return api.GetGuard422JSONResponse{NotForClientJSONResponse: api.NotForClientJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/guard", err)
 		return api.GetGuard503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err

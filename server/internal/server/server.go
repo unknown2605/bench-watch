@@ -364,23 +364,62 @@ func allowedHost(host string) bool {
 	return false
 }
 
+// logUnavailable logs the code of a database failure answered 503, through the same limiter as OnError.
+func logUnavailable(route string, err error) { apiErrors.Print("api "+route, unavailableCode(err)) }
+
 // unavailable is true for errors that mean PostgreSQL cannot answer now, which the API reports as 503.
-func unavailable(err error) bool {
+func unavailable(err error) bool { return unavailableCode(err) != "" }
+
+// unavailableCode is the one list of errors answered 503, and names each by a fixed code, never its text; "" is no
+// outage. The specific code of codelog.Of wins; the kind below is the fallback.
+func unavailableCode(err error) string {
 	if err == nil {
-		return false
+		return ""
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		c := pgErr.Code
-		return strings.HasPrefix(c, "08") || strings.HasPrefix(c, "57") || strings.HasPrefix(c, "53") ||
-			c == "42P01" || c == "42883"
+		if strings.HasPrefix(c, "08") || strings.HasPrefix(c, "57") || strings.HasPrefix(c, "53") ||
+			c == "42P01" || c == "42883" {
+			return specificCode(err, "EPG_OTHER")
+		}
+		return ""
 	}
 	var ne net.Error
 	var ce *pgconn.ConnectError
-	return errors.Is(err, context.DeadlineExceeded) || errors.As(err, &ne) || errors.As(err, &ce) ||
-		pgconn.Timeout(err) || errors.Is(err, errNoDB) || errors.Is(err, io.EOF) ||
-		errors.Is(err, io.ErrUnexpectedEOF) || pgconn.SafeToRetry(err) || strings.Contains(err.Error(), "closed pool") ||
-		strings.Contains(err.Error(), "conn closed")
+	var kind string
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		kind = "ETIMEDOUT"
+	case errors.As(err, &ne) && ne.Timeout():
+		kind = "ETIMEDOUT"
+	case errors.As(err, &ne):
+		kind = "ENET"
+	case errors.As(err, &ce):
+		kind = "EPG_CONNECT"
+	case errors.Is(err, errNoDB):
+		kind = "ENODB"
+	case errors.Is(err, io.EOF):
+		kind = "EEOF"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		kind = "EUNEXPECTED_EOF"
+	case errors.Is(err, pgconn.ErrConnClosed) || strings.Contains(err.Error(), "conn closed"):
+		kind = "ECLOSED_CONN"
+	case pgconn.SafeToRetry(err):
+		kind = "ERETRY"
+	case strings.Contains(err.Error(), "closed pool"):
+		kind = "ECLOSED_POOL"
+	default:
+		return ""
+	}
+	return specificCode(err, kind)
+}
+
+func specificCode(err error, kind string) string {
+	if c := codelog.Of(err); c != "" && c != "EOTHER" && c != "ok" {
+		return c
+	}
+	return kind
 }
 
 var errNoDB = errors.New("no database")
@@ -670,6 +709,7 @@ func bandsOf(rows []store.TokenBand, kind store.TokenBandKind) []api.TokenBand {
 func (s *Server) GetMeta(ctx context.Context, _ api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
 	out, err := s.meta(ctx)
 	if unavailable(err) {
+		logUnavailable("/api/meta", err)
 		return api.GetMeta503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{
 			Code: api.ErrorResponseCodeUnavailable}}, nil
 	}
@@ -711,7 +751,7 @@ func (s *Server) meta(ctx context.Context) (api.MetaResponse, error) {
 	if out.Tools, err = q.ListTools(ctx); err != nil {
 		return out, err
 	}
-	if out.Stacks, err = q.ListStacks(ctx, ts(s.now().Add(-7*24*time.Hour))); err != nil {
+	if out.Stacks, err = listStacks(ctx, q, s.now().Add(-7*24*time.Hour)); err != nil {
 		return out, err
 	}
 	out.Projects, out.Models, out.AgentTypes = nonNil(out.Projects), nonNil(out.Models), nonNil(out.AgentTypes)
@@ -737,6 +777,34 @@ func (s *Server) meta(ctx context.Context) (api.MetaResponse, error) {
 		return out, err
 	}
 	return out, nil
+}
+
+// stackParams starts each finer tier at the later of since and the newest bucket of the next coarser tier, if any.
+func stackParams(since time.Time, c store.StackCutoffsRow) store.ListStacksParams {
+	later := func(m pgtype.Timestamptz) pgtype.Timestamptz {
+		if m.Valid && m.Time.After(since) {
+			return m
+		}
+		return ts(since)
+	}
+	return store.ListStacksParams{HourSince: ts(since), MinuteSince: later(c.HourMax), RawSince: later(c.MinuteMax)}
+}
+
+// listStacks reads the cutoffs before the list, so a rollup in between only makes the list read more rows.
+func listStacks(ctx context.Context, q *store.Queries, since time.Time) ([]string, error) {
+	return listStacksWith(ctx, q, since, nil)
+}
+
+// listStacksWith runs between after the cutoffs are read, so a test can put a rollup there.
+func listStacksWith(ctx context.Context, q *store.Queries, since time.Time, between func()) ([]string, error) {
+	c, err := q.StackCutoffs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if between != nil {
+		between()
+	}
+	return q.ListStacks(ctx, stackParams(since, c))
 }
 
 // dayRange is the first and last day with transcript rows; nil when there are none.

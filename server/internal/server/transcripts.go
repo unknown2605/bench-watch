@@ -204,6 +204,7 @@ func (s *Server) GetOverview(ctx context.Context, r api.GetOverviewRequestObject
 	case ok && st == 400:
 		return api.GetOverview400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/overview", err)
 		return api.GetOverview503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -372,6 +373,7 @@ func (s *Server) GetTokens(ctx context.Context, r api.GetTokensRequestObject) (a
 	case ok && st == 400:
 		return api.GetTokens400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/tokens", err)
 		return api.GetTokens503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -490,6 +492,7 @@ func (s *Server) GetContext(ctx context.Context, r api.GetContextRequestObject) 
 	case ok && st == 422:
 		return api.GetContext422JSONResponse{NotForClientJSONResponse: api.NotForClientJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/context", err)
 		return api.GetContext503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -593,6 +596,7 @@ func (s *Server) GetSessions(ctx context.Context, r api.GetSessionsRequestObject
 	case ok && st == 400:
 		return api.GetSessions400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/sessions", err)
 		return api.GetSessions503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -670,6 +674,7 @@ func (s *Server) GetSession(ctx context.Context, r api.GetSessionRequestObject) 
 	case ok && st == 404:
 		return api.GetSession404JSONResponse{NotFoundJSONResponse: api.NotFoundJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/sessions/{session}", err)
 		return api.GetSession503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err
@@ -748,6 +753,7 @@ func (s *Server) GetSubagents(ctx context.Context, r api.GetSubagentsRequestObje
 	case ok && st == 422:
 		return api.GetSubagents422JSONResponse{NotForClientJSONResponse: api.NotForClientJSONResponse{Code: code}}, nil
 	case ok && st == 503:
+		logUnavailable("/api/subagents", err)
 		return api.GetSubagents503JSONResponse{UnavailableJSONResponse: api.UnavailableJSONResponse{Code: code}}, nil
 	}
 	return nil, err

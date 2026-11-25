@@ -372,6 +372,7 @@ func (s *Server) GetMachine(ctx context.Context, r api.GetMachineRequestObject) 
 		return api.GetMachine400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{Code: code}}, nil
 	}
 	if unavailable(err) {
+		logUnavailable("/api/machine", err)
 		return api.GetMachinedefaultJSONResponse{StatusCode: http.StatusServiceUnavailable,
 			Body: api.ErrorResponse{Code: api.ErrorResponseCodeUnavailable}}, nil
 	}
@@ -600,6 +601,7 @@ func (s *Server) GetDocker(ctx context.Context, r api.GetDockerRequestObject) (a
 		return api.GetDocker400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{Code: code}}, nil
 	}
 	if unavailable(err) {
+		logUnavailable("/api/docker", err)
 		return api.GetDockerdefaultJSONResponse{StatusCode: http.StatusServiceUnavailable,
 			Body: api.ErrorResponse{Code: api.ErrorResponseCodeUnavailable}}, nil
 	}
