@@ -5,11 +5,13 @@ import { useMetrics } from '../../app/queries';
 import { DockerPiece } from '../../charts/pieces';
 import type { DockerInput } from '../../charts/pieces/docker';
 import { ClippedName } from './parts';
+import { badEvents } from './dockerEvents';
 import { healthOf, pieceHealth } from './dockerHealth';
 import { KPI, ListRow, Panel } from '../../components';
 import * as f from '../../format/format';
 import { containerLabel, num, numOrNull, rows, stackLabel } from '../../format/labels';
 import { fraction, share } from '../../format/scale';
+import a11y from '../../styles/a11y.module.css';
 import type_ from '../../styles/type.module.css';
 import { MetricsFilter } from './MetricsFilter';
 import { TabFrame, TabPiece, errorText } from './TabFrame';
@@ -34,8 +36,13 @@ const EVENT_TEXT: Record<Schemas['DockerEventKind'], string> = {
   health_healthy: 'healthy',
   health_unhealthy: 'unhealthy', health_starting: 'starting', health: 'health check', other: 'other',
 };
-const EVENT_BAD = new Set<Schemas['DockerEventKind']>(['die', 'kill', 'oom', 'restart', 'health_unhealthy']);
-const EVENT_LOUD = new Set<Schemas['DockerEventKind']>([...EVENT_BAD, 'destroy', 'stop']);
+const EVENT_LOUD = new Set<Schemas['DockerEventKind']>(['die', 'kill', 'oom', 'restart', 'health_unhealthy', 'destroy',
+  'stop']);
+
+function badNote(n: number): string {
+  if (n === 0) return '';
+  return n === 1 ? ' · 1 event needs a look' : ` · ${f.int(n)} events need a look`;
+}
 
 type DiskPart = { name: string; value: number; tone: 'gold' | 'session' | 'ink' | 'dim' };
 
@@ -91,6 +98,7 @@ export function dockerView(d: Data, nowMs: number) {
       ]
     : [];
   const partTotal = parts.reduce((a, p) => a + p.value, 0);
+  const bad = badEvents(d.events, containers);
   const restarts = d.events.filter((e) => e.kind === 'restart').length;
   return {
     hasNow: now !== null && d.available,
@@ -184,12 +192,12 @@ export function dockerView(d: Data, nowMs: number) {
       time: f.clock(e.at),
       name: f.containerShort(containerLabel(e.container)),
       kind: EVENT_TEXT[e.kind],
-      bad: EVENT_BAD.has(e.kind),
+      bad: bad.has(e),
       loud: EVENT_LOUD.has(e.kind),
     })),
-    eventFootWarn: d.events.some((e) => EVENT_BAD.has(e.kind)),
+    eventFootWarn: bad.size > 0,
     eventFoot: `${f.int(d.events.length)} ${d.events.length === 1 ? 'event' : 'events'} · ${f.int(restarts)} ${
-      restarts === 1 ? 'restart' : 'restarts'} in range`,
+      restarts === 1 ? 'restart' : 'restarts'} in range${badNote(bad.size)}`,
     empty: now !== null && containers.length === 0,
   };
 }
@@ -288,11 +296,12 @@ export function Docker() {
           <ul className={own.events}>
             {keyed(v.events, (e) => e.key).map(([key, e]) => (
               <li key={key} className={`${own.event} ${e.bad ? own.eventBad : ''}`}>
-                <span className={own.eventMark} aria-hidden="true">×</span>
+                <span className={own.eventMark} aria-hidden="true">{e.bad ? '×' : '·'}</span>
                 <span className={`${type_.body} ${own.eventName}`}><ClippedName name={e.name} full={e.name} /></span>
                 <span className={`${type_.monoS} ${e.loud ? styles.eventWarn : styles.eventKind}`}>
                   {e.kind} {e.time}
                 </span>
+                {e.bad ? <span className={a11y.hidden}>needs a look</span> : null}
               </li>
             ))}
             {Array.from({ length: Math.max(0, EVENT_MIN_ROWS - v.events.length) }, (_, i) => (

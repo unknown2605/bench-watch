@@ -3,10 +3,12 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Schemas } from '../../api';
 import { resetFilters, setMetricsRange } from '../../app/filters';
 import { createAppRouter } from '../../app/router';
 import { healthOf } from '../../charts/pieces/docker';
 import { containerTrend, dockerView } from './Docker';
+import { badEvents } from './dockerEvents';
 import { machineView } from './Machine';
 import { fixtures } from './testData';
 
@@ -194,26 +196,170 @@ describe('Docker centre piece', () => {
 
   it('says the events footer counts the range, in singular for one', () => {
     const d = structuredClone(data.docker);
-    expect(dockerView(d, Date.now()).eventFoot).toBe('1 event · 1 restart in range');
+    expect(dockerView(d, Date.now()).eventFoot).toBe('1 event · 1 restart in range · 1 event needs a look');
     d.events = [];
     expect(dockerView(d, Date.now()).eventFoot).toBe('0 events · 0 restarts in range');
   });
 
-  it('warns in the events footer only for a restart or another bad event', async () => {
-    const d = structuredClone(data.docker);
-    const first = d.events[0]!;
-    const warns = (kinds: (typeof first.kind)[]) =>
-      dockerView({ ...d, events: kinds.map((kind) => ({ ...first, kind })) }, Date.now()).eventFootWarn;
-    expect(warns([])).toBe(false);
-    expect(warns(['create', 'start', 'stop', 'destroy', 'health_healthy'])).toBe(false);
-    for (const kind of ['restart', 'die', 'kill', 'oom', 'health_unhealthy'] as const) {
-      expect(warns(['start', kind])).toBe(true);
-    }
-    expect(warns([...Array(20).fill('start'), 'restart'])).toBe(true);
+  describe('bad Docker events', () => {
+    type Event = Fixtures['docker']['events'][number];
+    const base = Date.parse('2026-11-24T10:00:00.000Z');
+    const ev = (kind: Event['kind'], ms: number, container = 'mariadb_service'): Event =>
+      ({ at: new Date(base + ms).toISOString(), container, kind });
+    const view = (events: Event[], now: Partial<Schemas['ContainerNow']> | null = {}) => {
+      const d = structuredClone(data.docker);
+      d.events = [...events].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+      const first = d.now!.containers[0]!;
+      d.now!.containers = now ? [{ ...first, container: 'mariadb_service', state: 'running', ...now }] : [];
+      const v = dockerView(d, Date.now());
+      expect(v.eventFootWarn || !v.events.some((e) => e.bad)).toBe(true);
+      const n = badEvents(d.events, d.now!.containers).size;
+      expect(v.eventFoot.split(' · ').slice(2)).toEqual(
+        n === 0 ? [] : [n === 1 ? '1 event needs a look' : `${n} events need a look`]);
+      expect(v.eventFootWarn).toBe(n > 0);
+      return { warn: v.eventFootWarn, bad: v.events.filter((e) => e.bad).map((e) => e.kind) };
+    };
+    const calm = { warn: false, bad: [] };
+    const badAt = (events: Event[]) => [...badEvents(events, [])].map((e) => e.at).sort();
+
+    it('is calm with no events and with harmless ones', () => {
+      expect(view([])).toEqual(calm);
+      expect(view([ev('create', 0), ev('start', 10), ev('health_healthy', 20), ev('destroy', 30)])).toEqual(calm);
+    });
+
+    it.each([['1 ms after', 1], ['82 ms before', -82]])('is calm for a stop recorded %s its die', (_when, at) => {
+      expect(view([ev('kill', -8000), ev('die', 0), ev('stop', at)])).toEqual(calm);
+    });
+
+    it('is calm for a kill with no die', () => {
+      expect(view([ev('kill', 0)])).toEqual(calm);
+    });
+
+    it.each(['oom', 'restart', 'health_unhealthy'] as const)('warns for %s, also outside the drawn rows', (kind) => {
+      expect(view([ev('start', 0), ev(kind, 10)]).warn).toBe(true);
+      const far = [ev(kind, 0), ...Array.from({ length: 20 }, (_, i) => ev('start', 100 + i))];
+      expect(view(far)).toEqual({ warn: true, bad: [] });
+    });
+
+    it('warns for a die with no stop of its own container in reach', () => {
+      const one = { warn: true, bad: ['exited'] };
+      expect(view([ev('die', 0)])).toEqual(one);
+      expect(view([ev('die', 0), ev('start', 100)])).toEqual(one);
+      expect(view([ev('die', 0), ev('stop', 1, 'redis_service')])).toEqual(one);
+      expect(view([ev('die', 0), ev('stop', 2001)])).toEqual(one);
+      expect(view([ev('die', 0), ev('stop', -2001)])).toEqual(one);
+      expect(view([ev('die', 0), ev('stop', 2000)])).toEqual(calm);
+      expect(view([ev('die', 0), ev('stop', -2000)])).toEqual(calm);
+    });
+
+    const crash = [ev('kill', -500), ev('die', 0), ev('stop', 1), ev('start', 300), ev('die', 900)];
+    it.each([
+      ['the later die', crash, 900],
+      ['the earlier die', [ev('die', -1500), ev('start', -900), ev('die', 0), ev('stop', 1)], -1500],
+      ['the die farther from a stop between two dies', [ev('die', 0), ev('stop', 300), ev('die', 1000)], 1000],
+    ])('lets one stop excuse only the nearest die: %s stays bad', (_name, events, ms) => {
+      const want = [new Date(base + ms).toISOString()];
+      expect(badAt(events)).toEqual(want);
+      expect(badAt([...events].reverse())).toEqual(want);
+      expect(view(events)).toEqual({ warn: true, bad: ['exited'] });
+    });
+
+    it('excuses both dies when each has its own stop', () => {
+      expect(view([...crash, ev('stop', 901)])).toEqual(calm);
+      expect(badAt([...crash, ev('stop', 901)])).toEqual([]);
+    });
+
+    it('pairs a die and its stop across all events, not only the drawn rows', () => {
+      const later = (n: number) => Array.from({ length: n }, (_, i) => ev('start', 100 + i));
+      expect(view([ev('die', 0), ev('stop', 1), ...later(20)])).toEqual(calm);
+      expect(view([ev('die', 0), ...later(20)])).toEqual({ warn: true, bad: [] });
+      expect(view([ev('stop', -1), ev('die', 0), ...later(5)])).toEqual(calm);
+    });
+
+    it.each([
+      ['die', true], ['kill', true], ['oom', true], ['restart', true], ['health_unhealthy', true], ['destroy', true],
+      ['stop', true], ['create', false], ['start', false], ['rename', false], ['health_healthy', false],
+    ] as const)('draws a %s row with loud %s', (kind, loud) => {
+      const d = structuredClone(data.docker);
+      d.events = [ev(kind, 0)];
+      expect(dockerView(d, Date.now()).events.map((e) => e.loud)).toEqual([loud]);
+    });
+
+    it('never excuses a die under the merged label', () => {
+      const other = [ev('die', 0, 'other'), ev('stop', 1, 'other')];
+      expect(view(other).warn).toBe(true);
+      expect(view(other, { container: 'other', state: 'exited', exitCode: 0 }).warn).toBe(true);
+    });
+
+    it('excuses the die of a container that is finished now, and no other', () => {
+      const die = [ev('die', 0)];
+      expect(view(die, { state: 'exited', exitCode: 0 })).toEqual(calm);
+      expect(view(die, { state: 'exited', exitCode: 1 }).warn).toBe(true);
+      expect(view(die, { state: 'exited', exitCode: null }).warn).toBe(true);
+      expect(view(die, { container: 'redis_service', state: 'exited', exitCode: 0 }).warn).toBe(true);
+      expect(view(die, null).warn).toBe(true);
+    });
+
+    it('counts every bad event in the footer, also the ones that are not drawn', () => {
+      const d = structuredClone(data.docker);
+      const start = Array.from({ length: 20 }, (_, i) => ev('start', 100 + i));
+      const foot = (events: Event[]) => {
+        d.events = [...events].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+        return dockerView(d, Date.now());
+      };
+      expect(foot(start).eventFoot).toBe('20 events · 0 restarts in range');
+      const one = foot([ev('oom', 0), ...start]);
+      expect(one.events.map((e) => e.bad)).not.toContain(true);
+      expect(one.eventFoot).toBe('21 events · 0 restarts in range · 1 event needs a look');
+      const two = foot([ev('oom', 0), ev('health_unhealthy', 200), ...start]);
+      expect(two.events.filter((e) => e.bad)).toHaveLength(1);
+      expect(two.eventFoot).toBe('22 events · 0 restarts in range · 2 events need a look');
+    });
+
+    it('warns for a die while Docker has no current state', () => {
+      const d = structuredClone(data.docker);
+      d.now = null;
+      d.events = [ev('die', 0)];
+      expect(dockerView(d, Date.now()).eventFootWarn).toBe(true);
+    });
+  });
+
+  const foot = () => [...(host?.querySelectorAll('p') ?? [])].find((p) => p.textContent?.includes('in range'));
+  const marks = () => [...(host?.querySelectorAll('li > span[class*="eventMark"]') ?? [])].map((s) => s.textContent);
+
+  it('draws only the die of a lone exit as a bad row, and the kill, die and stop trio as calm', async () => {
+    type Row = Fixtures['docker']['events'][number];
+    const event = (kind: Row['kind'], ms: number): Row =>
+      ({ at: new Date(Date.now() - 60_000 + ms).toISOString(), container: 'mariadb_service', kind });
+    Object.assign(data.docker.now!.containers.find((c) => c.container === 'mariadb_service')!,
+      { state: 'running', exitCode: null });
+    const kindOf = (text: string) => [...(host?.querySelectorAll('li span') ?? [])]
+      .find((s) => s.textContent?.startsWith(text));
+    data.docker.events = [event('stop', 2), event('die', 1), event('kill', 0)];
+    await mount('/docker');
+    await vi.waitFor(() => expect(foot()?.textContent).toBe('3 events · 0 restarts in range'));
+    expect(foot()?.className).not.toMatch(/footWarn/);
+    expect(host?.querySelectorAll('li[class*="eventBad"]')).toHaveLength(0);
+    expect(marks()).toEqual(['·', '·', '·']);
+    expect(host?.querySelector('li [class*="hidden"]')).toBeNull();
+    for (const text of ['killed', 'exited', 'stopped']) expect(kindOf(text)?.className).toMatch(/eventWarn/);
+    act(() => root?.unmount());
+    host?.remove();
+    data.docker.events = [event('start', 100), event('die', 0)];
+    await mount('/docker');
+    await vi.waitFor(() => expect(foot()?.className).toMatch(/footWarn/));
+    const bad = [...(host?.querySelectorAll('li[class*="eventBad"]') ?? [])];
+    expect(bad).toHaveLength(1);
+    expect(bad[0]?.textContent).toMatch(/exited .*needs a look$/);
+    const spoken = [...(host?.querySelectorAll('li [class*="hidden"]') ?? [])];
+    expect(spoken).toHaveLength(1);
+    expect(spoken[0]?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(marks()).toEqual(['·', '×']);
+    expect(foot()?.textContent).toBe('2 events · 0 restarts in range · 1 event needs a look');
+    expect(kindOf('started')?.className).not.toMatch(/eventWarn/);
   });
 
   it('puts the events footer in the normal colour when nothing happened', async () => {
-    const foot = () => [...(host?.querySelectorAll('p') ?? [])].find((p) => p.textContent?.endsWith('in range'));
     await mount('/docker');
     await vi.waitFor(() => expect(foot()?.className).toMatch(/footWarn/));
     act(() => root?.unmount());
