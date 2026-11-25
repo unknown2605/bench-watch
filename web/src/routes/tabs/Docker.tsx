@@ -39,9 +39,10 @@ const EVENT_TEXT: Record<Schemas['DockerEventKind'], string> = {
 const EVENT_LOUD = new Set<Schemas['DockerEventKind']>(['die', 'kill', 'oom', 'restart', 'health_unhealthy', 'destroy',
   'stop']);
 
-function badNote(n: number): string {
-  if (n === 0) return '';
-  return n === 1 ? ' · 1 event needs a look' : ` · ${f.int(n)} events need a look`;
+function eventFootText(events: number, restarts: number, bad: number): string {
+  if (bad > 0) return bad === 1 ? '1 event needs a look' : `${f.int(bad)} events need a look`;
+  return `${f.int(events)} ${events === 1 ? 'event' : 'events'} · ${f.int(restarts)} ${
+    restarts === 1 ? 'restart' : 'restarts'} in range`;
 }
 
 type DiskPart = { name: string; value: number; tone: 'gold' | 'session' | 'ink' | 'dim' };
@@ -196,8 +197,7 @@ export function dockerView(d: Data, nowMs: number) {
       loud: EVENT_LOUD.has(e.kind),
     })),
     eventFootWarn: bad.size > 0,
-    eventFoot: `${f.int(d.events.length)} ${d.events.length === 1 ? 'event' : 'events'} · ${f.int(restarts)} ${
-      restarts === 1 ? 'restart' : 'restarts'} in range${badNote(bad.size)}`,
+    eventFoot: eventFootText(d.events.length, restarts, bad.size),
     empty: now !== null && containers.length === 0,
   };
 }

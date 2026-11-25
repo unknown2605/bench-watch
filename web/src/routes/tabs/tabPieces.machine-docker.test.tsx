@@ -196,7 +196,7 @@ describe('Docker centre piece', () => {
 
   it('says the events footer counts the range, in singular for one', () => {
     const d = structuredClone(data.docker);
-    expect(dockerView(d, Date.now()).eventFoot).toBe('1 event · 1 restart in range · 1 event needs a look');
+    expect(dockerView(d, Date.now()).eventFoot).toBe('1 event needs a look');
     d.events = [];
     expect(dockerView(d, Date.now()).eventFoot).toBe('0 events · 0 restarts in range');
   });
@@ -206,6 +206,7 @@ describe('Docker centre piece', () => {
     const base = Date.parse('2026-11-24T10:00:00.000Z');
     const ev = (kind: Event['kind'], ms: number, container = 'mariadb_service'): Event =>
       ({ at: new Date(base + ms).toISOString(), container, kind });
+    const calmFoot = (n: number) => `${n} ${n === 1 ? 'event' : 'events'} · 0 restarts in range`;
     const view = (events: Event[], now: Partial<Schemas['ContainerNow']> | null = {}) => {
       const d = structuredClone(data.docker);
       d.events = [...events].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
@@ -214,8 +215,8 @@ describe('Docker centre piece', () => {
       const v = dockerView(d, Date.now());
       expect(v.eventFootWarn || !v.events.some((e) => e.bad)).toBe(true);
       const n = badEvents(d.events, d.now!.containers).size;
-      expect(v.eventFoot.split(' · ').slice(2)).toEqual(
-        n === 0 ? [] : [n === 1 ? '1 event needs a look' : `${n} events need a look`]);
+      expect(v.eventFoot).toBe(
+        n === 0 ? calmFoot(d.events.length) : n === 1 ? '1 event needs a look' : `${n} events need a look`);
       expect(v.eventFootWarn).toBe(n > 0);
       return { warn: v.eventFootWarn, bad: v.events.filter((e) => e.bad).map((e) => e.kind) };
     };
@@ -264,6 +265,14 @@ describe('Docker centre piece', () => {
       expect(view(events)).toEqual({ warn: true, bad: ['exited'] });
     });
 
+    it('excuses the die of the stopped container, also when another container died nearer to the stop', () => {
+      const events = [ev('die', 0), ev('die', 400, 'redis_service'), ev('stop', 500)];
+      const want = [new Date(base + 400).toISOString()];
+      expect(badAt(events)).toEqual(want);
+      expect(badAt([...events].reverse())).toEqual(want);
+      expect(view(events)).toEqual({ warn: true, bad: ['exited'] });
+    });
+
     it('excuses both dies when each has its own stop', () => {
       expect(view([...crash, ev('stop', 901)])).toEqual(calm);
       expect(badAt([...crash, ev('stop', 901)])).toEqual([]);
@@ -276,10 +285,12 @@ describe('Docker centre piece', () => {
       expect(view([ev('stop', -1), ev('die', 0), ...later(5)])).toEqual(calm);
     });
 
-    it.each([
-      ['die', true], ['kill', true], ['oom', true], ['restart', true], ['health_unhealthy', true], ['destroy', true],
-      ['stop', true], ['create', false], ['start', false], ['rename', false], ['health_healthy', false],
-    ] as const)('draws a %s row with loud %s', (kind, loud) => {
+    const loudByKind: Record<Event['kind'], boolean> = {
+      die: true, kill: true, oom: true, restart: true, health_unhealthy: true, destroy: true, stop: true,
+      create: false, start: false, pause: false, unpause: false, rename: false, update: false,
+      health_healthy: false, health_starting: false, health: false, other: false,
+    };
+    it.each(Object.entries(loudByKind) as [Event['kind'], boolean][])('draws a %s row with loud %s', (kind, loud) => {
       const d = structuredClone(data.docker);
       d.events = [ev(kind, 0)];
       expect(dockerView(d, Date.now()).events.map((e) => e.loud)).toEqual([loud]);
@@ -310,10 +321,10 @@ describe('Docker centre piece', () => {
       expect(foot(start).eventFoot).toBe('20 events · 0 restarts in range');
       const one = foot([ev('oom', 0), ...start]);
       expect(one.events.map((e) => e.bad)).not.toContain(true);
-      expect(one.eventFoot).toBe('21 events · 0 restarts in range · 1 event needs a look');
+      expect(one.eventFoot).toBe('1 event needs a look');
       const two = foot([ev('oom', 0), ev('health_unhealthy', 200), ...start]);
       expect(two.events.filter((e) => e.bad)).toHaveLength(1);
-      expect(two.eventFoot).toBe('22 events · 0 restarts in range · 2 events need a look');
+      expect(two.eventFoot).toBe('2 events need a look');
     });
 
     it('warns for a die while Docker has no current state', () => {
@@ -324,7 +335,8 @@ describe('Docker centre piece', () => {
     });
   });
 
-  const foot = () => [...(host?.querySelectorAll('p') ?? [])].find((p) => p.textContent?.includes('in range'));
+  const foot = () => [...(host?.querySelectorAll('p') ?? [])]
+    .find((p) => p.nextElementSibling?.textContent?.startsWith('Names and numbers only'));
   const marks = () => [...(host?.querySelectorAll('li > span[class*="eventMark"]') ?? [])].map((s) => s.textContent);
 
   it('draws only the die of a lone exit as a bad row, and the kill, die and stop trio as calm', async () => {
@@ -355,7 +367,7 @@ describe('Docker centre piece', () => {
     expect(spoken).toHaveLength(1);
     expect(spoken[0]?.closest('[aria-hidden="true"]')).toBeNull();
     expect(marks()).toEqual(['·', '×']);
-    expect(foot()?.textContent).toBe('2 events · 0 restarts in range · 1 event needs a look');
+    expect(foot()?.textContent).toBe('1 event needs a look');
     expect(kindOf('started')?.className).not.toMatch(/eventWarn/);
   });
 
